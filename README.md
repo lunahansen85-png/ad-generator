@@ -1,36 +1,50 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Ad Generator
 
-## Getting Started
+Generates every template in a category (Morten or Testimonial) from one hook/quote,
+instead of hand-editing Python scripts + CSV files.
 
-First, run the development server:
+## Local development
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000). No password is required locally
+unless you set `APP_PASSWORD` (see below).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## How it's organized
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- `assets/bases/` — the 21 base template images, copied from the original
+  `Claude ads` project (10 `template_base_*`, `template_base_tp_stars`, 10 `morten_base_*`).
+- `assets/fonts/` — the same Open Sans fonts used by the original Python scripts.
+- `lib/templates/testimonial.ts` / `lib/templates/morten.ts` — one render function per
+  template, ported line-for-line from the original `generate_*_all.py` scripts (text
+  wrapping, auto-sizing, colors, positions).
+- `lib/canvas-helpers.ts` — shared text-wrap/auto-fit/draw primitives (the Node/canvas
+  equivalent of Pillow's `wrap_text` + `textbbox` used across every script).
+- `app/api/generate/route.ts` — renders every applicable template for the given category
+  and returns them as base64 images.
+- `app/page.tsx` — the UI: category picker, form, preview gallery, "download all as zip".
+- `proxy.ts` — the password gate (see below).
 
-## Learn More
+Adding a new template later means adding one entry to `testimonialTemplates` or
+`mortenTemplates` with its own base image and render function — no changes to the UI or
+API needed.
 
-To learn more about Next.js, take a look at the following resources:
+## Password-protecting it before deploying
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+The app is open to anyone with the link until you set an `APP_PASSWORD` environment
+variable. Once set, visitors must enter that password once (stored in a cookie) before
+reaching the generator or its API. Copy `.env.local.example` to `.env.local` to test this
+locally, or set `APP_PASSWORD` directly in Railway's environment variables before sharing
+the link with the team.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Deploying to Railway
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+1. Push this folder to its own GitHub repo (or connect it directly — it's fully
+   self-contained and separate from your other projects).
+2. Create a new Railway project from that repo. Railway auto-detects Next.js.
+3. Set the `APP_PASSWORD` environment variable in Railway before sharing the URL.
+4. Railway gives you a `*.up.railway.app` domain by default — you can rename it to
+   something less guessable, or attach a custom domain, from the project's Settings.
