@@ -6,6 +6,7 @@ import {
   TestimonialInput,
 } from "./templates/testimonial";
 import { mortenTemplates, MortenInput } from "./templates/morten";
+import { retinolTemplates, RetinolInput } from "./templates/retinol";
 
 export type GeneratedImage = {
   id: string;
@@ -46,6 +47,27 @@ export async function generateTestimonials(
 
     const resize = RESIZE_OVERRIDES[tpl.id];
     const { canvas, ctx } = await renderBase(tpl.baseImage, resize);
+    tpl.render(ctx, canvas, input);
+
+    const buffer = canvas.toBuffer("image/jpeg", 100);
+    results.push({
+      id: tpl.id,
+      label: tpl.label,
+      filename: `${tpl.outSuffix}_${slug}.jpg`,
+      buffer,
+    });
+  }
+
+  return results;
+}
+
+export async function generateRetinols(input: RetinolInput): Promise<GeneratedImage[]> {
+  ensureFontsRegistered();
+  const slug = slugify(input.headline, "retinol");
+  const results: GeneratedImage[] = [];
+
+  for (const tpl of retinolTemplates) {
+    const { canvas, ctx } = await renderBase(tpl.baseImage);
     tpl.render(ctx, canvas, input);
 
     const buffer = canvas.toBuffer("image/jpeg", 100);

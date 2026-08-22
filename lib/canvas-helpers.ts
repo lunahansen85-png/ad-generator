@@ -7,6 +7,10 @@ export const FONT = {
   bold: "OpenSansBold",
   bold700: "OpenSansBold700",
   regular: "OpenSansRegular",
+  // Open-license (SIL OFL) substitute for Times New Roman Bold — used by
+  // retinol_3, which needs a serif headline font that can't rely on a
+  // macOS-only system font once deployed.
+  serifBold: "LiberationSerifBold",
 };
 
 export function ensureFontsRegistered() {
@@ -24,6 +28,10 @@ export function ensureFontsRegistered() {
     path.join(fontsDir, "OpenSans-Regular.ttf"),
     FONT.regular
   );
+  GlobalFonts.registerFromPath(
+    path.join(fontsDir, "LiberationSerif-Bold.ttf"),
+    FONT.serifBold
+  );
   fontsRegistered = true;
 }
 
@@ -31,7 +39,13 @@ export function fontStr(family: string, size: number) {
   return `${size}px ${family}`;
 }
 
-/** Greedy word-wrap, mirrors the Python wrap_text() used by every template script. */
+/**
+ * Greedy word-wrap, mirrors the Python wrap_text() used by every template
+ * script. Splits on "\n" first and wraps each paragraph separately, so
+ * manual line breaks (e.g. from pressing Enter in a textarea) become forced
+ * line breaks instead of fusing into one oversized, unbreakable "word" that
+ * ignores maxWidth.
+ */
 export function wrapText(
   ctx: SKRSContext2D,
   text: string,
@@ -39,34 +53,41 @@ export function wrapText(
   maxWidth: number
 ): string[] {
   ctx.font = font;
-  const words = text.split(" ");
   const lines: string[] = [];
-  let current = "";
-  for (const word of words) {
-    const test = (current + " " + word).trim();
-    if (ctx.measureText(test).width <= maxWidth) {
-      current = test;
-    } else {
-      if (current) lines.push(current);
-      current = word;
+  for (const paragraph of text.split("\n")) {
+    const words = paragraph.split(" ");
+    let current = "";
+    for (const word of words) {
+      const test = (current + " " + word).trim();
+      if (ctx.measureText(test).width <= maxWidth) {
+        current = test;
+      } else {
+        if (current) lines.push(current);
+        current = word;
+      }
     }
+    if (current) lines.push(current);
   }
-  if (current) lines.push(current);
   return lines;
 }
 
 /**
- * Height of a single line of text. Uses the font's own ascent/descent metrics
- * (not the tight bounding box of the specific glyphs) because every draw call in
- * this app uses textBaseline="top", which anchors to those same font metrics.
- * Sizing boxes off the tighter actual-glyph box (e.g. a word with no descenders)
- * while drawing with the taller font-metric box caused text to render lower than
- * expected and get cropped by its own box.
+ * Height of a single line of text, from y (top, since every draw call here
+ * uses textBaseline="top") down to the bottom of this specific line's ink.
+ *
+ * Every draw call in this app uses textBaseline="top", which positions the
+ * *font's* ascent (not the tight glyph box) at y — so the top offset must
+ * always be the full fontBoundingBoxAscent, or tall glyphs get cropped at
+ * the top of their own box. But the bottom only needs to clear however far
+ * *this line's actual glyphs* dip below the baseline (actualBoundingBoxDescent)
+ * — using the font's max possible descent there (fontBoundingBoxDescent)
+ * overshoots for any line without deep descenders, which compounds across
+ * multiple lines/blocks into visibly too much spacing.
  */
 export function lineHeight(ctx: SKRSContext2D, text: string, font: string): number {
   ctx.font = font;
   const m = ctx.measureText(text || "Mg");
-  return (m.fontBoundingBoxAscent || 0) + (m.fontBoundingBoxDescent || 0);
+  return (m.fontBoundingBoxAscent || 0) + (m.actualBoundingBoxDescent || 0);
 }
 
 export function textWidth(ctx: SKRSContext2D, text: string, font: string): number {

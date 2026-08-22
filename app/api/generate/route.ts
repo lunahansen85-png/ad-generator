@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { generateMortens, generateTestimonials } from "@/lib/generate";
+import { generateMortens, generateRetinols, generateTestimonials } from "@/lib/generate";
 
 export const runtime = "nodejs";
 
@@ -29,6 +29,15 @@ export async function POST(req: NextRequest) {
         );
       }
       images = await generateTestimonials({ headline, quote, name, source });
+    } else if (category === "retinol") {
+      const headline = String(body.headline ?? "").trim();
+      const subheadline = String(body.subheadline ?? "").trim();
+      const retinolBody = String(body.body ?? "").trim();
+
+      if (!headline) {
+        return NextResponse.json({ error: "Headline is required." }, { status: 400 });
+      }
+      images = await generateRetinols({ headline, subheadline, body: retinolBody });
     } else {
       return NextResponse.json({ error: "Unknown category." }, { status: 400 });
     }
