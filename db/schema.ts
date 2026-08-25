@@ -7,7 +7,7 @@ import {
   index,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
-import { sql } from "drizzle-orm";
+import { sql, relations } from "drizzle-orm";
 
 /**
  * ad_copy = den faelles "CSV". Én raekke pr. annoncetekst.
@@ -77,3 +77,15 @@ export const generatedImage = pgTable(
 
 export type AdCopyRow = typeof adCopy.$inferSelect;
 export type GeneratedImageRow = typeof generatedImage.$inferSelect;
+
+// Relationer — kraeves af Drizzles query-API (db.query...with).
+export const adCopyRelations = relations(adCopy, ({ many }) => ({
+  images: many(generatedImage),
+}));
+
+export const generatedImageRelations = relations(generatedImage, ({ one }) => ({
+  adCopy: one(adCopy, {
+    fields: [generatedImage.adCopyId],
+    references: [adCopy.id],
+  }),
+}));
