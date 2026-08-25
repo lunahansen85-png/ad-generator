@@ -8,7 +8,8 @@ export function proxy(req: NextRequest) {
   // No password configured (e.g. local dev) — let everything through.
   if (!password) return NextResponse.next();
 
-  if (req.nextUrl.pathname === "/login" || req.nextUrl.pathname === "/api/login") {
+  const p = req.nextUrl.pathname;
+  if (p === "/login" || p === "/api/login" || p.startsWith("/i/")) {
     return NextResponse.next();
   }
 
@@ -21,5 +22,7 @@ export function proxy(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!login|api/login|_next/static|_next/image|favicon.ico).*)"],
+  // "i" = den offentlige billed-rute (/i/<noegle>). Den SKAL vaere undtaget:
+  // Ad Studio og Meta henter billeder derfra uden login.
+  matcher: ["/((?!login|api/login|i/|_next/static|_next/image|favicon.ico).*)"],
 };
