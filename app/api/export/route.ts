@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { adCopy } from "@/db/schema";
+import { publicOrigin } from "@/lib/public-url";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -20,7 +21,7 @@ function csvCell(v: string) {
 
 export async function GET(req: NextRequest) {
   const category = req.nextUrl.searchParams.get("category");
-  const origin = req.nextUrl.origin;
+  const origin = publicOrigin(req);
 
   const rows = await db.query.adCopy.findMany({
     where: category ? eq(adCopy.category, category) : undefined,
