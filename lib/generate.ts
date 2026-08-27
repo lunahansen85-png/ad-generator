@@ -24,6 +24,18 @@ async function renderBase(baseImagePath: string, resize?: [number, number]) {
   return { canvas, ctx };
 }
 
+// Resize + center-crop to target dimensions (mirrors the Python scale+crop logic).
+async function renderBaseResizeCrop(baseImagePath: string, w: number, h: number) {
+  const img = await loadImage(baseImagePath);
+  const scale = Math.max(w / img.width, h / img.height);
+  const nw = img.width * scale;
+  const nh = img.height * scale;
+  const canvas = createCanvas(w, h);
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(img, (w - nw) / 2, (h - nh) / 2, nw, nh);
+  return { canvas, ctx };
+}
+
 function slugify(text: string, fallback: string) {
   const slug = text
     .toLowerCase()
@@ -67,7 +79,9 @@ export async function generateRetinols(input: RetinolInput): Promise<GeneratedIm
   const results: GeneratedImage[] = [];
 
   for (const tpl of retinolTemplates) {
-    const { canvas, ctx } = await renderBase(tpl.baseImage);
+    const { canvas, ctx } = tpl.width && tpl.height
+      ? await renderBaseResizeCrop(tpl.baseImage, tpl.width, tpl.height)
+      : await renderBase(tpl.baseImage);
     tpl.render(ctx, canvas, input);
 
     const buffer = canvas.toBuffer("image/jpeg", 100);
@@ -88,7 +102,9 @@ export async function generateMortens(input: MortenInput): Promise<GeneratedImag
   const results: GeneratedImage[] = [];
 
   for (const tpl of mortenTemplates) {
-    const { canvas, ctx } = await renderBase(tpl.baseImage);
+    const { canvas, ctx } = tpl.width && tpl.height
+      ? await renderBaseResizeCrop(tpl.baseImage, tpl.width, tpl.height)
+      : await renderBase(tpl.baseImage);
     tpl.render(ctx, canvas, input);
 
     const buffer = canvas.toBuffer("image/jpeg", 100);

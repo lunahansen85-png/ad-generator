@@ -23,6 +23,8 @@ export type RetinolTemplate = {
   label: string;
   baseImage: string;
   outSuffix: string;
+  width?: number;
+  height?: number;
   render: (ctx: SKRSContext2D, canvas: Canvas, input: RetinolInput) => void;
 };
 
@@ -563,6 +565,454 @@ export const retinolTemplates: RetinolTemplate[] = [
         const x = IMG_W / 2 - w / 2;
         drawSegmentLine(ctx, lines[i], x, y, regFont, boldFont, DARK);
         y += h + LINE_SPACING;
+      }
+    },
+  },
+
+  // ── 9×16 format variants ──────────────────────────────────────────────────
+
+  {
+    id: "retinol_1_9x16", label: "Retinol 1 – 9×16",
+    baseImage: path.join(BASES, "retinol_base_1_9x16.jpg"),
+    outSuffix: "retinol1", width: 1080, height: 1920,
+    render(ctx, canvas, { headline, subheadline, body }) {
+      const BLACK = rgb(0,0,0), DARK = rgb(40,40,40);
+      const CARD_LEFT=273, CARD_RIGHT=813, CARD_TOP=445, CARD_BOTTOM=1390;
+      const MAX_W = CARD_RIGHT - CARD_LEFT;
+      let y = CARD_TOP;
+      const combinedHl = combine(headline, subheadline);
+      if (combinedHl) {
+        const fit = autoFitSize(ctx, combinedHl, FONT.bold700, 56, 18, 1, MAX_W, 320, () => 4);
+        drawMultilineText(ctx, fit.lines, CARD_LEFT, y, fontStr(FONT.bold700, fit.size), { fill: BLACK, spacing: fit.spacing });
+        y += fit.blockHeight + 30;
+      }
+      if (subheadline && headline) {
+        // subheadline already included in combinedHl above
+      }
+      if (body) {
+        const availableH = CARD_BOTTOM - y - 10;
+        const fit = autoFitSize(ctx, body, FONT.regular, 34, 14, 1, MAX_W, availableH, () => 6);
+        drawMultilineText(ctx, fit.lines, CARD_LEFT, y, fontStr(FONT.regular, fit.size), { fill: DARK, spacing: fit.spacing });
+      }
+    },
+  },
+  {
+    id: "retinol_2_9x16", label: "Retinol 2 – 9×16",
+    baseImage: path.join(BASES, "retinol_base_2_9x16.jpg"),
+    outSuffix: "retinol2", width: 1080, height: 1920,
+    render(ctx, canvas, { headline, subheadline, body }) {
+      const BLACK = rgb(0,0,0), DARK = rgb(40,40,40);
+      const TEXT_LEFT=40, TEXT_RIGHT=490, TEXT_TOP=200, TEXT_BOTTOM=1540;
+      const MAX_W = TEXT_RIGHT - TEXT_LEFT;
+      let y = TEXT_TOP;
+      const combinedHl = combine(headline, subheadline);
+      if (combinedHl) {
+        const fit = autoFitSize(ctx, combinedHl, FONT.bold700, 40, 18, 1, MAX_W, 280, () => 4);
+        drawMultilineText(ctx, fit.lines, TEXT_LEFT, y, fontStr(FONT.bold700, fit.size), { fill: BLACK, spacing: fit.spacing });
+        y += fit.blockHeight + 40;
+      }
+      if (body) {
+        const availableH = TEXT_BOTTOM - y;
+        const fit = autoFitSize(ctx, body, FONT.regular, 36, 14, 1, MAX_W, availableH, () => 8);
+        drawMultilineText(ctx, fit.lines, TEXT_LEFT, y, fontStr(FONT.regular, fit.size), { fill: DARK, spacing: fit.spacing });
+      }
+    },
+  },
+  {
+    id: "retinol_3_9x16", label: "Retinol 3 – 9×16",
+    baseImage: path.join(BASES, "retinol_base_3_9x16.jpg"),
+    outSuffix: "retinol3", width: 1080, height: 1920,
+    render(ctx, canvas, { headline, subheadline }) {
+      const WHITE = rgb(255,255,255);
+      const CENTER_X = 540, MAX_W = 1020, Y_HEADLINE = 232;
+      let y = Y_HEADLINE;
+      if (headline) {
+        const font = fontStr(FONT.serifBold, 66);
+        const lines = wrapText(ctx, headline, font, MAX_W);
+        drawMultilineText(ctx, lines, CENTER_X, y, font, { fill: WHITE, spacing: 13, align: "center" });
+        y += multilineHeight(ctx, lines, font, 13) + 30;
+      }
+      if (subheadline) {
+        const font = fontStr(FONT.serifBold, 52);
+        const lines = wrapText(ctx, subheadline, font, MAX_W);
+        drawMultilineText(ctx, lines, CENTER_X, y, font, { fill: WHITE, spacing: 12, align: "center" });
+      }
+    },
+  },
+  {
+    id: "retinol_4_9x16", label: "Retinol 4 – 9×16",
+    baseImage: path.join(BASES, "retinol_base_4_9x16.jpg"),
+    outSuffix: "retinol4", width: 1080, height: 1920,
+    render(ctx, canvas, { headline, subheadline, body }) {
+      const BLACK = rgb(0,0,0), WHITE = rgb(255,255,255), DARK = rgb(30,30,30);
+      const IMG_W = 1080;
+      const combinedHl = combine(headline, subheadline);
+      const hlFont = fontStr(FONT.bold700, 44);
+      const hlLines = wrapText(ctx, combinedHl, hlFont, 900);
+      drawHighlightedLines(ctx, hlLines, hlFont, { imgW: IMG_W, yTop: 110, padX: 18, padY: 14, radius: 14, lineSpacing: 10, boxColor: BLACK, textColor: WHITE });
+      if (body) {
+        const GREY_TOP=1020, GREY_BOT=1536, TEXT_LEFT=50, MAX_W_B=980;
+        const greyH = GREY_BOT - GREY_TOP;
+        const fit = autoFitSize(ctx, body, FONT.bold700, 46, 14, 1, MAX_W_B, greyH, () => 10);
+        drawMultilineText(ctx, fit.lines, TEXT_LEFT, GREY_TOP, fontStr(FONT.bold700, fit.size), { fill: DARK, spacing: fit.spacing });
+      }
+    },
+  },
+  {
+    id: "retinol_5_9x16", label: "Retinol 5 – 9×16",
+    baseImage: path.join(BASES, "retinol_base_5_9x16.jpg"),
+    outSuffix: "retinol5", width: 1080, height: 1920,
+    render(ctx, canvas, { headline, subheadline }) {
+      const DARK = rgb(20,20,20);
+      const GREY_TOP=1040, GREY_BOT=1536, TEXT_LEFT=55, MAX_W=970;
+      const greyPad = 30;
+      const greyH = GREY_BOT - GREY_TOP - 2 * greyPad;
+      const combined = combine(headline, subheadline);
+      const fit = autoFitSize(ctx, combined, FONT.bold700, 62, 20, 1, MAX_W, greyH, () => 8);
+      const greyMid = (GREY_TOP + GREY_BOT) / 2;
+      const textY = greyMid - fit.blockHeight / 2 - 40;
+      drawMultilineText(ctx, fit.lines, TEXT_LEFT, textY, fontStr(FONT.bold700, fit.size), { fill: DARK, spacing: fit.spacing });
+    },
+  },
+  {
+    id: "retinol_6_9x16", label: "Retinol 6 – 9×16",
+    baseImage: path.join(BASES, "retinol_base_6_9x16.jpg"),
+    outSuffix: "retinol6", width: 1080, height: 1920,
+    render(ctx, canvas, { headline, subheadline }) {
+      const DARK = rgb(20,20,20);
+      const GREY_TOP=1070, GREY_BOT=1510, TEXT_LEFT=60, MAX_W=960;
+      const greyPad = 30, vertShift = 40;
+      const greyH = GREY_BOT - GREY_TOP - 2 * greyPad;
+      const combined = combine(headline, subheadline);
+      const fit = autoFitSize(ctx, combined, FONT.bold700, 62, 20, 1, MAX_W, greyH, () => 8);
+      const greyMid = (GREY_TOP + GREY_BOT) / 2;
+      const textY = greyMid - fit.blockHeight / 2 + vertShift;
+      drawMultilineText(ctx, fit.lines, TEXT_LEFT, textY, fontStr(FONT.bold700, fit.size), { fill: DARK, spacing: fit.spacing });
+    },
+  },
+  {
+    id: "retinol_7_9x16", label: "Retinol 7 – 9×16",
+    baseImage: path.join(BASES, "retinol_base_7_9x16.jpg"),
+    outSuffix: "retinol7", width: 1080, height: 1920,
+    render(ctx, canvas, { headline, subheadline }) {
+      const BLACK = rgb(0,0,0), WHITE = rgb(255,255,255);
+      const IMG_W = 1080;
+      const combined = combine(headline, subheadline);
+      const font = fontStr(FONT.bold700, 59);
+      const lines = wrapText(ctx, combined, font, 951);
+      drawHighlightedLines(ctx, lines, font, { imgW: IMG_W, yTop: 142, padX: 18, padY: 14, radius: 16, lineSpacing: 25, boxColor: BLACK, textColor: WHITE });
+    },
+  },
+  {
+    id: "retinol_8_9x16", label: "Retinol 8 – 9×16",
+    baseImage: path.join(BASES, "retinol_base_8_9x16.jpg"),
+    outSuffix: "retinol8", width: 1080, height: 1920,
+    render(ctx, canvas, { headline, subheadline }) {
+      const WHITE = rgb(255,255,255);
+      const TEXT_LEFT=59, MAX_W=1021-59, TEXT_Y_START=726, TEXT_BOTTOM=1034, LINE_SPACING=14;
+      const combined = combine(headline, subheadline);
+      if (!combined) return;
+      const segments = parseSegments(combined);
+      let size = 52, lines: Segment[][] = [];
+      for (size = 52; size >= 20; size--) {
+        const regFont = fontStr(FONT.regular, size), boldFont = fontStr(FONT.bold700, size);
+        lines = layoutSegments(ctx, segments, regFont, boldFont, MAX_W);
+        const totalH = lines.reduce((a,l) => a + segmentLineHeight(ctx,l,regFont,boldFont), 0) + LINE_SPACING*(lines.length-1);
+        if (totalH <= TEXT_BOTTOM - TEXT_Y_START) break;
+      }
+      const regFont = fontStr(FONT.regular, size), boldFont = fontStr(FONT.bold700, size);
+      let y = TEXT_Y_START;
+      for (const line of lines) {
+        const h = segmentLineHeight(ctx, line, regFont, boldFont);
+        drawSegmentLine(ctx, line, TEXT_LEFT, y, regFont, boldFont, WHITE);
+        y += h + LINE_SPACING;
+      }
+    },
+  },
+  {
+    id: "retinol_9_9x16", label: "Retinol 9 – 9×16",
+    baseImage: path.join(BASES, "retinol_base_9_9x16.jpg"),
+    outSuffix: "retinol9", width: 1080, height: 1920,
+    render(ctx, canvas, { headline, subheadline }) {
+      const DARK = rgb(20,20,20);
+      const BOX_TOP=1155, BOX_BOT=1440;
+      const PAD_X=55*1080/1142, TEXT_LEFT=Math.round(92*1080/1142 + PAD_X);
+      const TEXT_RIGHT=Math.round(1087*1080/1142 - PAD_X);
+      const MAX_W = TEXT_RIGHT - TEXT_LEFT;
+      const LINE_SPACING = 14;
+      const combined = combine(headline, subheadline);
+      if (!combined) return;
+      const segments = parseSegments(combined);
+      let size = 46, lines: Segment[][] = [];
+      for (size = 46; size >= 20; size--) {
+        const regFont = fontStr(FONT.regular, size), boldFont = fontStr(FONT.bold700, size);
+        lines = layoutSegments(ctx, segments, regFont, boldFont, MAX_W);
+        const refLh = lineHeight(ctx, "Ag", boldFont);
+        const totalH = refLh * lines.length + LINE_SPACING * (lines.length - 1);
+        if (totalH <= BOX_BOT - BOX_TOP) break;
+      }
+      const boldFont = fontStr(FONT.bold700, size), regFont = fontStr(FONT.regular, size);
+      const fixedLh = lineHeight(ctx, "Ag", boldFont);
+      const totalH = fixedLh * lines.length + LINE_SPACING * (lines.length - 1);
+      const boxMid = (BOX_TOP + BOX_BOT) / 2;
+      let y = boxMid - totalH / 2 - 12;
+      for (const line of lines) {
+        drawSegmentLine(ctx, line, TEXT_LEFT, y, regFont, boldFont, DARK);
+        y += fixedLh + LINE_SPACING;
+      }
+    },
+  },
+  {
+    id: "retinol_10_9x16", label: "Retinol 10 – 9×16",
+    baseImage: path.join(BASES, "retinol_base_10_9x16.jpg"),
+    outSuffix: "retinol10", width: 1080, height: 1920,
+    render(ctx, canvas, { headline, subheadline }) {
+      const DARK = rgb(15,15,15), WHITE = rgb(255,255,255);
+      const IMG_W = 1080, HEADLINE_SIZE = 51, LINE_SPACING = 46, PAD_Y = 32;
+      const combined = combine(headline, subheadline);
+      if (!combined) return;
+      const segments = parseSegments(combined);
+      const regFont = fontStr(FONT.regular, HEADLINE_SIZE), boldFont = fontStr(FONT.bold700, HEADLINE_SIZE);
+      const lines = layoutSegments(ctx, segments, regFont, boldFont, 980);
+      const metrics = lines.map((line) => ({ w: segmentLineWidth(ctx,line,regFont,boldFont), h: segmentLineHeight(ctx,line,regFont,boldFont) }));
+      let y = 125;
+      for (const { w, h } of metrics) {
+        ctx.beginPath(); ctx.roundRect(IMG_W/2-w/2-18, y-PAD_Y, w+36, h+PAD_Y*2, 14);
+        ctx.fillStyle = WHITE; ctx.fill(); y += h + LINE_SPACING;
+      }
+      y = 125;
+      for (let i = 0; i < lines.length; i++) {
+        drawSegmentLine(ctx, lines[i], IMG_W/2-metrics[i].w/2, y, regFont, boldFont, DARK);
+        y += metrics[i].h + LINE_SPACING;
+      }
+    },
+  },
+
+  // ── 1080×1080 format variants ─────────────────────────────────────────────
+
+  {
+    id: "retinol_1_1080x1080", label: "Retinol 1 – 1080×1080",
+    baseImage: path.join(BASES, "retinol_base_1_1080x1080.jpg"),
+    outSuffix: "retinol1", width: 1080, height: 1080,
+    render(ctx, canvas, { headline, subheadline, body }) {
+      const BLACK = rgb(0,0,0), DARK = rgb(40,40,40);
+      const CARD_LEFT=305, CARD_RIGHT=755, CARD_TOP=200, CARD_BOTTOM=800;
+      const MAX_W = CARD_RIGHT - CARD_LEFT;
+      let y = CARD_TOP;
+      const combinedHl = combine(headline, subheadline);
+      if (combinedHl) {
+        const fit = autoFitSize(ctx, combinedHl, FONT.bold700, 38, 16, 1, MAX_W, 210, () => 4);
+        drawMultilineText(ctx, fit.lines, CARD_LEFT, y, fontStr(FONT.bold700, fit.size), { fill: BLACK, spacing: fit.spacing });
+        y += fit.blockHeight + 20;
+      }
+      if (body) {
+        const availableH = CARD_BOTTOM - y - 10;
+        const fit = autoFitSize(ctx, body, FONT.regular, 24, 12, 1, MAX_W, availableH, () => 6);
+        drawMultilineText(ctx, fit.lines, CARD_LEFT, y, fontStr(FONT.regular, fit.size), { fill: DARK, spacing: fit.spacing });
+      }
+    },
+  },
+  {
+    id: "retinol_2_1080x1080", label: "Retinol 2 – 1080×1080",
+    baseImage: path.join(BASES, "retinol_base_2_1080x1080.jpg"),
+    outSuffix: "retinol2", width: 1080, height: 1080,
+    render(ctx, canvas, { headline, subheadline, body }) {
+      const BLACK = rgb(0,0,0), DARK = rgb(40,40,40);
+      const TEXT_LEFT=84, TEXT_RIGHT=446, TEXT_TOP=43, TEXT_BOTTOM=1037;
+      const MAX_W = TEXT_RIGHT - TEXT_LEFT;
+      let y = TEXT_TOP;
+      const combinedHl = combine(headline, subheadline);
+      if (combinedHl) {
+        const availableHlH = Math.floor((TEXT_BOTTOM - TEXT_TOP) / 2);
+        const fit = autoFitSize(ctx, combinedHl, FONT.bold700, 36, 18, 1, MAX_W, availableHlH, () => 4);
+        drawMultilineText(ctx, fit.lines, TEXT_LEFT, y, fontStr(FONT.bold700, fit.size), { fill: BLACK, spacing: fit.spacing });
+        y += fit.blockHeight + 34;
+      }
+      if (body) {
+        const availableH = TEXT_BOTTOM - y;
+        const fit = autoFitSize(ctx, body, FONT.regular, 27, 10, 1, MAX_W, availableH, () => 8);
+        drawMultilineText(ctx, fit.lines, TEXT_LEFT, y, fontStr(FONT.regular, fit.size), { fill: DARK, spacing: fit.spacing });
+      }
+    },
+  },
+  {
+    id: "retinol_3_1080x1080", label: "Retinol 3 – 1080×1080",
+    baseImage: path.join(BASES, "retinol_base_3_1080x1080.jpg"),
+    outSuffix: "retinol3", width: 1080, height: 1080,
+    render(ctx, canvas, { headline, subheadline }) {
+      const WHITE = rgb(255,255,255);
+      const CENTER_X = 540, MAX_W = 1000, Y_HEADLINE = 131;
+      let y = Y_HEADLINE;
+      if (headline) {
+        const font = fontStr(FONT.serifBold, 48);
+        const lines = wrapText(ctx, headline, font, MAX_W);
+        drawMultilineText(ctx, lines, CENTER_X, y, font, { fill: WHITE, spacing: 13, align: "center" });
+        y += multilineHeight(ctx, lines, font, 13) + 60;
+      }
+      if (subheadline) {
+        const font = fontStr(FONT.serifBold, 36);
+        const lines = wrapText(ctx, subheadline, font, MAX_W);
+        drawMultilineText(ctx, lines, CENTER_X, y, font, { fill: WHITE, spacing: 12, align: "center" });
+      }
+    },
+  },
+  {
+    id: "retinol_4_1080x1080", label: "Retinol 4 – 1080×1080",
+    baseImage: path.join(BASES, "retinol_base_4_1080x1080.jpg"),
+    outSuffix: "retinol4", width: 1080, height: 1080,
+    render(ctx, canvas, { headline, subheadline, body }) {
+      const BLACK = rgb(0,0,0), WHITE = rgb(255,255,255), DARK = rgb(30,30,30);
+      const IMG_W = 1080;
+      const combinedHl = combine(headline, subheadline);
+      const hlFont = fontStr(FONT.bold700, 36);
+      const hlLines = wrapText(ctx, combinedHl, hlFont, 680);
+      drawHighlightedLines(ctx, hlLines, hlFont, { imgW: IMG_W, yTop: 80, padX: 18, padY: 14, radius: 14, lineSpacing: 10, boxColor: BLACK, textColor: WHITE });
+      if (body) {
+        const GREY_TOP=750, GREY_BOT=1080, TEXT_LEFT=50, MAX_W_B=980, greyPad=25;
+        const greyH = GREY_BOT - GREY_TOP - 2 * greyPad;
+        const fit = autoFitSize(ctx, body, FONT.bold700, 36, 14, 1, MAX_W_B, greyH, () => 10);
+        const greyMid = (GREY_TOP + GREY_BOT) / 2;
+        const textY = greyMid - fit.blockHeight / 2 - 18;
+        drawMultilineText(ctx, fit.lines, TEXT_LEFT, textY, fontStr(FONT.bold700, fit.size), { fill: DARK, spacing: fit.spacing });
+      }
+    },
+  },
+  {
+    id: "retinol_5_1080x1080", label: "Retinol 5 – 1080×1080",
+    baseImage: path.join(BASES, "retinol_base_5_1080x1080.jpg"),
+    outSuffix: "retinol5", width: 1080, height: 1080,
+    render(ctx, canvas, { headline, subheadline }) {
+      const DARK = rgb(20,20,20);
+      const GREY_TOP=750, GREY_BOT=1080, TEXT_LEFT=55, MAX_W=970, greyPad=30;
+      const greyH = GREY_BOT - GREY_TOP - 2 * greyPad;
+      const combined = combine(headline, subheadline);
+      const fit = autoFitSize(ctx, combined, FONT.bold700, 62, 20, 1, MAX_W, greyH, () => 8);
+      const greyMid = (GREY_TOP + GREY_BOT) / 2;
+      const textY = greyMid - fit.blockHeight / 2 - 18;
+      drawMultilineText(ctx, fit.lines, TEXT_LEFT, textY, fontStr(FONT.bold700, fit.size), { fill: DARK, spacing: fit.spacing });
+    },
+  },
+  {
+    id: "retinol_6_1080x1080", label: "Retinol 6 – 1080×1080",
+    baseImage: path.join(BASES, "retinol_base_6_1080x1080.jpg"),
+    outSuffix: "retinol6", width: 1080, height: 1080,
+    render(ctx, canvas, { headline, subheadline }) {
+      const DARK = rgb(20,20,20);
+      const GREY_TOP=710, GREY_BOT=1080, TEXT_LEFT=60, MAX_W=960, greyPad=30, vertShift=-18;
+      const greyH = GREY_BOT - GREY_TOP - 2 * greyPad;
+      const combined = combine(headline, subheadline);
+      const fit = autoFitSize(ctx, combined, FONT.bold700, 54, 20, 1, MAX_W, greyH, () => 8);
+      const greyMid = (GREY_TOP + GREY_BOT) / 2;
+      const textY = greyMid - fit.blockHeight / 2 + vertShift;
+      drawMultilineText(ctx, fit.lines, TEXT_LEFT, textY, fontStr(FONT.bold700, fit.size), { fill: DARK, spacing: fit.spacing });
+    },
+  },
+  {
+    id: "retinol_7_1080x1080", label: "Retinol 7 – 1080×1080",
+    baseImage: path.join(BASES, "retinol_base_7_1080x1080.jpg"),
+    outSuffix: "retinol7", width: 1080, height: 1080,
+    render(ctx, canvas, { headline, subheadline }) {
+      const BLACK = rgb(0,0,0), WHITE = rgb(255,255,255);
+      const IMG_W = 1080, MAX_TEXT_BOT = 405;
+      const combined = combine(headline, subheadline);
+      const yTop = 80;
+      let font = fontStr(FONT.bold700, 59);
+      let lines = wrapText(ctx, combined, font, 951);
+      for (let size = 59; size >= 18; size--) {
+        font = fontStr(FONT.bold700, size);
+        lines = wrapText(ctx, combined, font, 951);
+        const metrics = lines.map(l => lineHeight(ctx, l, font));
+        const totalH = metrics.reduce((a,h)=>a+h,0) + 18*(lines.length-1);
+        if (yTop + totalH <= MAX_TEXT_BOT) break;
+      }
+      drawHighlightedLines(ctx, lines, font, { imgW: IMG_W, yTop, padX: 18, padY: 14, radius: 16, lineSpacing: 18, boxColor: BLACK, textColor: WHITE });
+    },
+  },
+  {
+    id: "retinol_8_1080x1080", label: "Retinol 8 – 1080×1080",
+    baseImage: path.join(BASES, "retinol_base_8_1080x1080.jpg"),
+    outSuffix: "retinol8", width: 1080, height: 1080,
+    render(ctx, canvas, { headline, subheadline }) {
+      const WHITE = rgb(255,255,255);
+      const TEXT_LEFT=59, MAX_W=962, TEXT_Y_START=726, TEXT_BOTTOM=1034, LINE_SPACING=14;
+      const combined = combine(headline, subheadline);
+      if (!combined) return;
+      const segments = parseSegments(combined);
+      let size = 52, lines: Segment[][] = [];
+      for (size = 52; size >= 20; size--) {
+        const regFont = fontStr(FONT.regular, size), boldFont = fontStr(FONT.bold700, size);
+        lines = layoutSegments(ctx, segments, regFont, boldFont, MAX_W);
+        const totalH = lines.reduce((a,l)=>a+segmentLineHeight(ctx,l,regFont,boldFont),0) + LINE_SPACING*(lines.length-1);
+        if (totalH <= TEXT_BOTTOM - TEXT_Y_START) break;
+      }
+      const regFont = fontStr(FONT.regular, size), boldFont = fontStr(FONT.bold700, size);
+      let y = TEXT_Y_START;
+      for (const line of lines) {
+        const h = segmentLineHeight(ctx, line, regFont, boldFont);
+        drawSegmentLine(ctx, line, TEXT_LEFT, y, regFont, boldFont, WHITE);
+        y += h + LINE_SPACING;
+      }
+    },
+  },
+  {
+    id: "retinol_9_1080x1080", label: "Retinol 9 – 1080×1080",
+    baseImage: path.join(BASES, "retinol_base_9_1080x1080.jpg"),
+    outSuffix: "retinol9", width: 1080, height: 1080,
+    render(ctx, canvas, { headline, subheadline }) {
+      const DARK = rgb(20,20,20);
+      const sx = 1080/1142;
+      const BOX_TOP = Math.round(649*sx), BOX_BOT = Math.round(949*sx);
+      const PAD_X = Math.round(55*sx);
+      const TEXT_LEFT = Math.round(92*sx) + PAD_X;
+      const MAX_W = Math.round(1087*sx) - PAD_X - TEXT_LEFT;
+      const LINE_SPACING = 14;
+      const combined = combine(headline, subheadline);
+      if (!combined) return;
+      const segments = parseSegments(combined);
+      let size = 46, lines: Segment[][] = [];
+      for (size = 46; size >= 20; size--) {
+        const regFont = fontStr(FONT.regular, size), boldFont = fontStr(FONT.bold700, size);
+        lines = layoutSegments(ctx, segments, regFont, boldFont, MAX_W);
+        const refLh = lineHeight(ctx, "Ag", boldFont);
+        const totalH = refLh * lines.length + LINE_SPACING * (lines.length - 1);
+        if (totalH <= BOX_BOT - BOX_TOP) break;
+      }
+      const boldFont = fontStr(FONT.bold700, size), regFont = fontStr(FONT.regular, size);
+      const fixedLh = lineHeight(ctx, "Ag", boldFont);
+      const totalH = fixedLh * lines.length + LINE_SPACING * (lines.length - 1);
+      const boxMid = (BOX_TOP + BOX_BOT) / 2;
+      let y = boxMid - totalH / 2;
+      for (const line of lines) {
+        drawSegmentLine(ctx, line, TEXT_LEFT, y, regFont, boldFont, DARK);
+        y += fixedLh + LINE_SPACING;
+      }
+    },
+  },
+  {
+    id: "retinol_10_1080x1080", label: "Retinol 10 – 1080×1080",
+    baseImage: path.join(BASES, "retinol_base_10_1080x1080.jpg"),
+    outSuffix: "retinol10", width: 1080, height: 1080,
+    render(ctx, canvas, { headline, subheadline }) {
+      const DARK = rgb(15,15,15), WHITE = rgb(255,255,255);
+      const IMG_W = 1080, sx = 1080/838;
+      const HEADLINE_SIZE = Math.round(40*sx);
+      const LINE_SPACING = Math.round(20*sx);
+      const PAD_Y = Math.round(14*sx);
+      const combined = combine(headline, subheadline);
+      if (!combined) return;
+      const segments = parseSegments(combined);
+      const regFont = fontStr(FONT.regular, HEADLINE_SIZE), boldFont = fontStr(FONT.bold700, HEADLINE_SIZE);
+      const lines = layoutSegments(ctx, segments, regFont, boldFont, Math.round(760*sx));
+      const metrics = lines.map((line) => ({ w: segmentLineWidth(ctx,line,regFont,boldFont), h: segmentLineHeight(ctx,line,regFont,boldFont) }));
+      let y = Math.round(55*sx);
+      for (const { w, h } of metrics) {
+        ctx.beginPath(); ctx.roundRect(IMG_W/2-w/2-18, y-PAD_Y, w+36, h+PAD_Y*2, 14);
+        ctx.fillStyle = WHITE; ctx.fill(); y += h + LINE_SPACING;
+      }
+      y = Math.round(55*sx);
+      for (let i = 0; i < lines.length; i++) {
+        drawSegmentLine(ctx, lines[i], IMG_W/2-metrics[i].w/2, y, regFont, boldFont, DARK);
+        y += metrics[i].h + LINE_SPACING;
       }
     },
   },

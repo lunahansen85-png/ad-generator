@@ -9,6 +9,8 @@ export type MortenTemplate = {
   label: string;
   baseImage: string;
   outSuffix: string;
+  width?: number;
+  height?: number;
   render: (ctx: SKRSContext2D, canvas: Canvas, input: MortenInput) => void;
 };
 
@@ -433,6 +435,319 @@ export const mortenTemplates: MortenTemplate[] = [
         boxColor: rgb(0, 0, 0),
         textColor: rgb(255, 255, 255),
         radius: 18,
+      });
+    },
+  },
+
+  // ── 9×16 format variants ──────────────────────────────────────────────────
+  {
+    id: "morten_1_9x16", label: "Morten 1 – 9×16",
+    baseImage: path.join(BASES, "morten_base_1_9x16.jpg"),
+    outSuffix: "morten", width: 1080, height: 1920,
+    render(ctx, canvas, { text }) {
+      renderCenteredBoxes(ctx, canvas, text, {
+        maxSize: 48, minSize: 18, xMargin: 54, padX: 20, padTop: 18, padBottom: 10,
+        yBottom: 1540, yTopMax: 1200, boxColor: rgb(0,0,0), textColor: rgb(255,255,255),
+      });
+    },
+  },
+  {
+    id: "morten_2_9x16", label: "Morten 2 – 9×16",
+    baseImage: path.join(BASES, "morten_base_2_9x16.jpg"),
+    outSuffix: "morten", width: 1080, height: 1920,
+    render(ctx, canvas, { text }) {
+      renderBlockLeftBoxes(ctx, canvas, text, {
+        maxSize: 56, minSize: 18, xMargin: 49, rightMargin: 106, padX: 20, padTop: 18, padBottom: 10,
+        yBottom: 1540, yTopMax: 1200, boxColor: rgb(0,0,0), textColor: rgb(255,255,255),
+      });
+    },
+  },
+  {
+    id: "morten_3_9x16", label: "Morten 3 – 9×16",
+    baseImage: path.join(BASES, "morten_base_3_9x16.jpg"),
+    outSuffix: "morten", width: 1080, height: 1920,
+    render(ctx, canvas, { text }) {
+      renderBlockLeftBoxes(ctx, canvas, text, {
+        maxSize: 56, minSize: 18, xMargin: 54, rightMargin: 127, padX: 24, padTop: 20, padBottom: 12,
+        yBottom: 1540, yTopMax: 1200, boxColor: rgb(254,209,30), textColor: rgb(0,0,0),
+      });
+    },
+  },
+  {
+    id: "morten_4_9x16", label: "Morten 4 – 9×16",
+    baseImage: path.join(BASES, "morten_base_4_9x16.jpg"),
+    outSuffix: "morten", width: 1080, height: 1920,
+    render(ctx, canvas, { text }) {
+      const X_MARGIN = 55, LINE_GAP = 24, TOP_GAP = 30;
+      const YELLOW_TOP = 1140, YELLOW_BOTTOM = 1540;
+      const { width } = canvas;
+      const maxW = width - 2 * X_MARGIN;
+      const { size, lines, heights } = autoFitLines(ctx, text, 90, 20, 2, maxW, (_, hs) => {
+        const totalH = hs.reduce((a, h) => a + h, 0) + LINE_GAP * (hs.length - 1);
+        return totalH <= YELLOW_BOTTOM - YELLOW_TOP - TOP_GAP;
+      });
+      const font = fontStr(FONT.bold700, size);
+      let y = YELLOW_TOP + TOP_GAP;
+      ctx.textAlign = "left"; ctx.textBaseline = "top"; ctx.font = font; ctx.fillStyle = rgb(0,0,0);
+      for (let i = 0; i < lines.length; i++) {
+        ctx.fillText(lines[i], X_MARGIN, y);
+        y += heights[i] + LINE_GAP;
+      }
+    },
+  },
+  {
+    id: "morten_5_9x16", label: "Morten 5 – 9×16",
+    baseImage: path.join(BASES, "morten_base_5_9x16.jpg"),
+    outSuffix: "morten", width: 1080, height: 1920,
+    render(ctx, canvas, { text }) {
+      renderBlockLeftBoxes(ctx, canvas, text, {
+        maxSize: 44, minSize: 18, xMargin: 54, rightMargin: 54, padX: 22, padTop: 12, padBottom: 7,
+        yBottom: 1540, yTopMax: 1200, boxColor: rgb(30,72,255), textColor: rgb(255,255,255),
+      });
+    },
+  },
+  {
+    id: "morten_6_9x16", label: "Morten 6 – 9×16",
+    baseImage: path.join(BASES, "morten_base_6_9x16.jpg"),
+    outSuffix: "morten", width: 1080, height: 1920,
+    render(ctx, canvas, { text }) {
+      renderBlockLeftBoxes(ctx, canvas, text, {
+        maxSize: 56, minSize: 18, xMargin: 54, rightMargin: 120, padX: 17, padTop: 15, padBottom: 8,
+        yBottom: 1540, yTopMax: 1200, boxColor: rgb(0,0,0), textColor: rgb(255,255,255),
+      });
+    },
+  },
+  {
+    id: "morten_7_9x16", label: "Morten 7 – 9×16",
+    baseImage: path.join(BASES, "morten_base_7_9x16.jpg"),
+    outSuffix: "morten", width: 1080, height: 1920,
+    render(ctx, canvas, { text }) {
+      const X_MARGIN = 54, LINE_GAP = 12, STROKE = 7;
+      const Y_BOTTOM = 1540, Y_TOP_MAX = 1200;
+      const { width } = canvas;
+      const xCenter = width / 2;
+      let lines: string[] = [], heights: number[] = [], size = 20;
+      for (size = 72; size >= 20; size -= 2) {
+        const font = fontStr(FONT.bold700, size);
+        lines = wrapText(ctx, text, font, width - 2 * X_MARGIN);
+        heights = lines.map((l) => lineHeight(ctx, l, font));
+        const totalH = heights.reduce((a, h) => a + h, 0) + LINE_GAP * (heights.length - 1);
+        if (totalH <= Y_BOTTOM - Y_TOP_MAX) break;
+      }
+      const font = fontStr(FONT.bold700, size);
+      const totalH = heights.reduce((a, h) => a + h, 0) + LINE_GAP * (heights.length - 1);
+      let y = Y_BOTTOM - totalH;
+      ctx.textAlign = "center"; ctx.textBaseline = "top"; ctx.font = font; ctx.lineJoin = "round";
+      for (let i = 0; i < lines.length; i++) {
+        ctx.lineWidth = STROKE * 2; ctx.strokeStyle = rgb(0,0,0); ctx.strokeText(lines[i], xCenter, y);
+        ctx.fillStyle = rgb(255,255,255); ctx.fillText(lines[i], xCenter, y);
+        y += heights[i] + LINE_GAP;
+      }
+    },
+  },
+  {
+    id: "morten_8_9x16", label: "Morten 8 – 9×16",
+    baseImage: path.join(BASES, "morten_base_8_9x16.jpg"),
+    outSuffix: "morten", width: 1080, height: 1920,
+    render(ctx, canvas, { text }) {
+      renderCenteredBoxes(ctx, canvas, text, {
+        maxSize: 60, minSize: 18, xMargin: 30, padX: 20, padTop: 16, padBottom: 10,
+        yBottom: 1540, yTopMax: 1200, boxColor: rgb(0,0,0), textColor: rgb(255,255,255), radius: 22,
+      });
+    },
+  },
+  {
+    id: "morten_9_9x16", label: "Morten 9 – 9×16",
+    baseImage: path.join(BASES, "morten_base_9_9x16.jpg"),
+    outSuffix: "morten", width: 1080, height: 1920,
+    render(ctx, canvas, { text }) {
+      const X_MARGIN = 45, RIGHT_MARGIN = 45, LINE_GAP = 18;
+      const YELLOW_TOP = 1013, YELLOW_BOTTOM = 1540;
+      const { width } = canvas;
+      const maxW = width - X_MARGIN - RIGHT_MARGIN;
+      let lines: string[] = [], heights: number[] = [], size = 18;
+      for (size = 64; size >= 18; size -= 2) {
+        const font = fontStr(FONT.bold700, size);
+        lines = wrapText(ctx, text, font, maxW);
+        heights = lines.map((l) => lineHeight(ctx, l, font));
+        const totalH = heights.reduce((a, h) => a + h, 0) + LINE_GAP * (heights.length - 1);
+        if (totalH <= YELLOW_BOTTOM - YELLOW_TOP) break;
+      }
+      const totalH = heights.reduce((a, h) => a + h, 0) + LINE_GAP * (heights.length - 1);
+      const leftover = YELLOW_BOTTOM - YELLOW_TOP - totalH;
+      let y = YELLOW_TOP + leftover * 0.3;
+      ctx.textAlign = "left"; ctx.textBaseline = "top";
+      ctx.font = fontStr(FONT.bold700, size); ctx.fillStyle = rgb(0,0,0);
+      for (let i = 0; i < lines.length; i++) {
+        ctx.fillText(lines[i], X_MARGIN, y); y += heights[i] + LINE_GAP;
+      }
+    },
+  },
+  {
+    id: "morten_10_9x16", label: "Morten 10 – 9×16",
+    baseImage: path.join(BASES, "morten_base_10_9x16.jpg"),
+    outSuffix: "morten", width: 1080, height: 1920,
+    render(ctx, canvas, { text }) {
+      renderCenteredBoxes(ctx, canvas, text, {
+        maxSize: 58, minSize: 18, xMargin: 25, padX: 16, padTop: 13, padBottom: 8,
+        yBottom: 1540, yTopMax: 1200, boxColor: rgb(0,0,0), textColor: rgb(255,255,255), radius: 18,
+      });
+    },
+  },
+
+  // ── 1080×1080 format variants ─────────────────────────────────────────────
+  {
+    id: "morten_1_1080x1080", label: "Morten 1 – 1080×1080",
+    baseImage: path.join(BASES, "morten_base_1_1080x1080.jpg"),
+    outSuffix: "morten", width: 1080, height: 1080,
+    render(ctx, canvas, { text }) {
+      renderCenteredBoxes(ctx, canvas, text, {
+        maxSize: 36, minSize: 16, xMargin: 47, padX: 20, padTop: 18, padBottom: 10,
+        yBottom: 980, yTopMax: 550, boxColor: rgb(0,0,0), textColor: rgb(255,255,255),
+      });
+    },
+  },
+  {
+    id: "morten_2_1080x1080", label: "Morten 2 – 1080×1080",
+    baseImage: path.join(BASES, "morten_base_2_1080x1080.jpg"),
+    outSuffix: "morten", width: 1080, height: 1080,
+    render(ctx, canvas, { text }) {
+      renderBlockLeftBoxes(ctx, canvas, text, {
+        maxSize: 36, minSize: 16, xMargin: 46, rightMargin: 100, padX: 20, padTop: 18, padBottom: 10,
+        yBottom: 916, yTopMax: 618, boxColor: rgb(0,0,0), textColor: rgb(255,255,255),
+      });
+    },
+  },
+  {
+    id: "morten_3_1080x1080", label: "Morten 3 – 1080×1080",
+    baseImage: path.join(BASES, "morten_base_3_1080x1080.jpg"),
+    outSuffix: "morten", width: 1080, height: 1080,
+    render(ctx, canvas, { text }) {
+      renderBlockLeftBoxes(ctx, canvas, text, {
+        maxSize: 32, minSize: 16, xMargin: 51, rightMargin: 120, padX: 24, padTop: 12, padBottom: 7,
+        yBottom: 916, yTopMax: 618, boxColor: rgb(254,209,30), textColor: rgb(0,0,0),
+      });
+    },
+  },
+  {
+    id: "morten_4_1080x1080", label: "Morten 4 – 1080×1080",
+    baseImage: path.join(BASES, "morten_base_4_1080x1080.jpg"),
+    outSuffix: "morten", width: 1080, height: 1080,
+    render(ctx, canvas, { text }) {
+      const X_MARGIN = 47, LINE_GAP = 24, TOP_GAP = 8, BOTTOM_GAP = 8;
+      const YELLOW_TOP = 743, YELLOW_BOTTOM = 990;
+      const { width } = canvas;
+      const maxW = width - 2 * X_MARGIN;
+      const { size, lines, heights } = autoFitLines(ctx, text, 90, 20, 2, maxW, (_, hs) => {
+        const totalH = hs.reduce((a, h) => a + h, 0) + LINE_GAP * (hs.length - 1);
+        return totalH <= YELLOW_BOTTOM - YELLOW_TOP - TOP_GAP - BOTTOM_GAP;
+      });
+      const font = fontStr(FONT.bold700, size);
+      const totalH = heights.reduce((a, h) => a + h, 0) + LINE_GAP * (heights.length - 1);
+      const leftover = YELLOW_BOTTOM - YELLOW_TOP - totalH;
+      let y = YELLOW_TOP + leftover * 0.5;
+      ctx.textAlign = "left"; ctx.textBaseline = "top"; ctx.font = font; ctx.fillStyle = rgb(0,0,0);
+      for (let i = 0; i < lines.length; i++) {
+        ctx.fillText(lines[i], X_MARGIN, y); y += heights[i] + LINE_GAP;
+      }
+    },
+  },
+  {
+    id: "morten_5_1080x1080", label: "Morten 5 – 1080×1080",
+    baseImage: path.join(BASES, "morten_base_5_1080x1080.jpg"),
+    outSuffix: "morten", width: 1080, height: 1080,
+    render(ctx, canvas, { text }) {
+      renderBlockLeftBoxes(ctx, canvas, text, {
+        maxSize: 32, minSize: 16, xMargin: 46, rightMargin: 46, padX: 22, padTop: 12, padBottom: 7,
+        yBottom: 935, yTopMax: 618, boxColor: rgb(30,72,255), textColor: rgb(255,255,255),
+      });
+    },
+  },
+  {
+    id: "morten_6_1080x1080", label: "Morten 6 – 1080×1080",
+    baseImage: path.join(BASES, "morten_base_6_1080x1080.jpg"),
+    outSuffix: "morten", width: 1080, height: 1080,
+    render(ctx, canvas, { text }) {
+      renderBlockLeftBoxes(ctx, canvas, text, {
+        maxSize: 36, minSize: 16, xMargin: 46, rightMargin: 100, padX: 17, padTop: 15, padBottom: 8,
+        yBottom: 916, yTopMax: 618, boxColor: rgb(0,0,0), textColor: rgb(255,255,255),
+      });
+    },
+  },
+  {
+    id: "morten_7_1080x1080", label: "Morten 7 – 1080×1080",
+    baseImage: path.join(BASES, "morten_base_7_1080x1080.jpg"),
+    outSuffix: "morten", width: 1080, height: 1080,
+    render(ctx, canvas, { text }) {
+      const X_MARGIN = 46, LINE_GAP = 12, STROKE = 7;
+      const Y_BOTTOM = 950, Y_TOP_MAX = 618;
+      const { width } = canvas;
+      const xCenter = width / 2;
+      let lines: string[] = [], heights: number[] = [], size = 20;
+      for (size = 40; size >= 18; size -= 2) {
+        const font = fontStr(FONT.bold700, size);
+        lines = wrapText(ctx, text, font, width - 2 * X_MARGIN);
+        heights = lines.map((l) => lineHeight(ctx, l, font));
+        const totalH = heights.reduce((a, h) => a + h, 0) + LINE_GAP * (heights.length - 1);
+        if (totalH <= Y_BOTTOM - Y_TOP_MAX) break;
+      }
+      const font = fontStr(FONT.bold700, size);
+      const totalH = heights.reduce((a, h) => a + h, 0) + LINE_GAP * (heights.length - 1);
+      let y = Y_BOTTOM - totalH;
+      ctx.textAlign = "center"; ctx.textBaseline = "top"; ctx.font = font; ctx.lineJoin = "round";
+      for (let i = 0; i < lines.length; i++) {
+        ctx.lineWidth = STROKE * 2; ctx.strokeStyle = rgb(0,0,0); ctx.strokeText(lines[i], xCenter, y);
+        ctx.fillStyle = rgb(255,255,255); ctx.fillText(lines[i], xCenter, y);
+        y += heights[i] + LINE_GAP;
+      }
+    },
+  },
+  {
+    id: "morten_8_1080x1080", label: "Morten 8 – 1080×1080",
+    baseImage: path.join(BASES, "morten_base_8_1080x1080.jpg"),
+    outSuffix: "morten", width: 1080, height: 1080,
+    render(ctx, canvas, { text }) {
+      renderCenteredBoxes(ctx, canvas, text, {
+        maxSize: 36, minSize: 16, xMargin: 28, padX: 20, padTop: 16, padBottom: 10,
+        yBottom: 942, yTopMax: 700, boxColor: rgb(0,0,0), textColor: rgb(255,255,255), radius: 22,
+      });
+    },
+  },
+  {
+    id: "morten_9_1080x1080", label: "Morten 9 – 1080×1080",
+    baseImage: path.join(BASES, "morten_base_9_1080x1080.jpg"),
+    outSuffix: "morten", width: 1080, height: 1080,
+    render(ctx, canvas, { text }) {
+      const X_MARGIN = 40, RIGHT_MARGIN = 40, LINE_GAP = 18;
+      const YELLOW_TOP = 703, YELLOW_BOTTOM = 990;
+      const { width } = canvas;
+      const maxW = width - X_MARGIN - RIGHT_MARGIN;
+      let lines: string[] = [], heights: number[] = [], size = 18;
+      for (size = 42; size >= 18; size -= 2) {
+        const font = fontStr(FONT.bold700, size);
+        lines = wrapText(ctx, text, font, maxW);
+        heights = lines.map((l) => lineHeight(ctx, l, font));
+        const totalH = heights.reduce((a, h) => a + h, 0) + LINE_GAP * (heights.length - 1);
+        if (totalH <= YELLOW_BOTTOM - YELLOW_TOP) break;
+      }
+      const totalH = heights.reduce((a, h) => a + h, 0) + LINE_GAP * (heights.length - 1);
+      const leftover = YELLOW_BOTTOM - YELLOW_TOP - totalH;
+      let y = YELLOW_TOP + leftover * 0.5;
+      ctx.textAlign = "left"; ctx.textBaseline = "top";
+      ctx.font = fontStr(FONT.bold700, size); ctx.fillStyle = rgb(0,0,0);
+      for (let i = 0; i < lines.length; i++) {
+        ctx.fillText(lines[i], X_MARGIN, y); y += heights[i] + LINE_GAP;
+      }
+    },
+  },
+  {
+    id: "morten_10_1080x1080", label: "Morten 10 – 1080×1080",
+    baseImage: path.join(BASES, "morten_base_10_1080x1080.jpg"),
+    outSuffix: "morten", width: 1080, height: 1080,
+    render(ctx, canvas, { text }) {
+      renderCenteredBoxes(ctx, canvas, text, {
+        maxSize: 44, minSize: 16, xMargin: 22, padX: 16, padTop: 13, padBottom: 8,
+        yBottom: 916, yTopMax: 618, boxColor: rgb(0,0,0), textColor: rgb(255,255,255), radius: 18,
       });
     },
   },
