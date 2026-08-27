@@ -245,7 +245,7 @@ export default function Home() {
         }
         setBulkRows(results.data);
       },
-        error: (err) => setBulkParseError(err.message),
+        error: (err: Error) => setBulkParseError(err.message),
       });
     };
     reader.readAsText(file);
