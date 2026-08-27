@@ -185,6 +185,11 @@ export default function Bibliotek() {
         <ul className="space-y-4">
           {rows.map((row) => (
             <li key={row.id} className="rounded-lg border p-4">
+              {row.note && (
+                <span className="mb-3 inline-block rounded-full bg-amber-100 px-3 py-0.5 text-xs font-medium text-amber-800">
+                  {row.note}
+                </span>
+              )}
               <div className="grid gap-3 sm:grid-cols-2">
                 {FIELDS[row.category]?.map((f) => (
                   <label key={String(f.key)} className="block text-sm">

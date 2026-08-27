@@ -78,7 +78,7 @@ export async function generateRetinols(input: RetinolInput): Promise<GeneratedIm
   const slug = slugify(input.headline, "retinol");
   const results: GeneratedImage[] = [];
 
-  for (const tpl of retinolTemplates) {
+  for (const tpl of retinolTemplates.filter((t) => t.width && t.height)) {
     const { canvas, ctx } = tpl.width && tpl.height
       ? await renderBaseResizeCrop(tpl.baseImage, tpl.width, tpl.height)
       : await renderBase(tpl.baseImage);
@@ -101,7 +101,7 @@ export async function generateMortens(input: MortenInput): Promise<GeneratedImag
   const slug = slugify(input.text, "morten");
   const results: GeneratedImage[] = [];
 
-  for (const tpl of mortenTemplates) {
+  for (const tpl of mortenTemplates.filter((t) => t.width && t.height)) {
     const { canvas, ctx } = tpl.width && tpl.height
       ? await renderBaseResizeCrop(tpl.baseImage, tpl.width, tpl.height)
       : await renderBase(tpl.baseImage);

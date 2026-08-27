@@ -83,6 +83,13 @@ export default function Home() {
   const [bulkImages, setBulkImages] = useState<BulkImage[]>([]);
   const [bulkError, setBulkError] = useState<string | null>(null);
   const [bulkZipping, setBulkZipping] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saved" | "error">("idle");
+  const [saveLabel, setSaveLabel] = useState("");
+  const [bulkSaving, setBulkSaving] = useState(false);
+  const [bulkSaveStatus, setBulkSaveStatus] = useState<"idle" | "saved" | "error">("idle");
+  const [bulkSaveLabel, setBulkSaveLabel] = useState("");
+  const [bulkSaveError, setBulkSaveError] = useState<string | null>(null);
 
   async function handleGenerate(e: React.FormEvent) {
     e.preventDefault();
@@ -109,10 +116,41 @@ export default function Home() {
         throw new Error(data.error || "Failed to generate images.");
       }
       setImages(data.images);
+      setSaveStatus("idle");
     } catch (err: any) {
       setError(err.message || "Something went wrong.");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function saveToLibrary() {
+    setSaving(true);
+    setSaveStatus("idle");
+    try {
+      const payload =
+        category === "morten"
+          ? { category, text }
+          : category === "retinol"
+            ? { category, headline: rHeadline, subheadline: rSubheadline, body: rBody }
+            : { category, headline, quote, name, source };
+
+      const copyRes = await fetch("/api/copy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...payload, note: saveLabel.trim() }),
+      });
+      if (!copyRes.ok) throw new Error("Failed to save copy.");
+      const { row } = await copyRes.json();
+
+      const genRes = await fetch(`/api/copy/${row.id}/generate`, { method: "POST" });
+      if (!genRes.ok) throw new Error("Failed to upload images.");
+
+      setSaveStatus("saved");
+    } catch {
+      setSaveStatus("error");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -124,7 +162,12 @@ export default function Home() {
       const zip = new JSZip();
       for (const img of images) {
         const base64 = img.dataUrl.split(",")[1];
-        zip.file(img.filename, base64, { base64: true });
+        const folderName = img.id.endsWith("_9x16")
+          ? "9x16"
+          : img.id.endsWith("_1080x1080")
+          ? "1080x1080"
+          : "original";
+        zip.folder(folderName)!.file(img.filename, base64, { base64: true });
       }
       const blob = await zip.generateAsync({ type: "blob" });
       const url = URL.createObjectURL(blob);
@@ -166,12 +209,22 @@ export default function Home() {
     setBulkImages([]);
     setBulkError(null);
 
-    Papa.parse<Record<string, string>>(file, {
-      header: true,
-      skipEmptyLines: true,
-      complete: (results) => {
-        if (results.errors.length > 0) {
-          setBulkParseError(results.errors[0].message);
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      let csv = (ev.target?.result as string) ?? "";
+      const lines = csv.split(/\r?\n/);
+      const knownColumns = ["text", "headline", "quote", "name", "source", "subheadline", "body"];
+      if (lines.length > 0 && !knownColumns.some((col) => lines[0].toLowerCase().includes(col))) {
+        csv = lines.slice(1).join("\n");
+      }
+      Papa.parse<Record<string, string>>(csv, {
+        header: true,
+        skipEmptyLines: true,
+        delimiter: "",
+        complete: (results) => {
+        const fatalErrors = results.errors.filter((e) => e.type !== "Quotes" && e.type !== "Delimiter" && e.type !== "FieldMismatch");
+        if (fatalErrors.length > 0) {
+          setBulkParseError(fatalErrors[0].message);
           return;
         }
         const { required } = CATEGORY_CSV[category];
@@ -192,8 +245,10 @@ export default function Home() {
         }
         setBulkRows(results.data);
       },
-      error: (err) => setBulkParseError(err.message),
-    });
+        error: (err) => setBulkParseError(err.message),
+      });
+    };
+    reader.readAsText(file);
   }
 
   async function handleBulkGenerate() {
@@ -221,10 +276,43 @@ export default function Home() {
         setBulkProgress({ done: i + 1, total: bulkRows.length });
       }
       setBulkImages(collected);
+      setBulkSaveStatus("idle");
     } catch (err: any) {
       setBulkError(err.message || "Something went wrong.");
     } finally {
       setBulkGenerating(false);
+    }
+  }
+
+  async function saveBulkToLibrary() {
+    setBulkSaving(true);
+    setBulkSaveStatus("idle");
+    setBulkSaveError(null);
+    try {
+      for (let i = 0; i < bulkRows.length; i++) {
+        const payload = { category, ...bulkRows[i], note: bulkSaveLabel.trim() };
+        const copyRes = await fetch("/api/copy", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (!copyRes.ok) {
+          const d = await copyRes.json().catch(() => ({}));
+          throw new Error(`Row ${i + 1} copy save failed (${copyRes.status}): ${d.error ?? "unknown error"}`);
+        }
+        const { row } = await copyRes.json();
+        const genRes = await fetch(`/api/copy/${row.id}/generate`, { method: "POST" });
+        if (!genRes.ok) {
+          const d = await genRes.json().catch(() => ({}));
+          throw new Error(`Row ${i + 1} image upload failed (${genRes.status}): ${d.error ?? "unknown error"}`);
+        }
+      }
+      setBulkSaveStatus("saved");
+    } catch (err: any) {
+      setBulkSaveStatus("error");
+      setBulkSaveError(err.message || "Unknown error");
+    } finally {
+      setBulkSaving(false);
     }
   }
 
@@ -236,8 +324,15 @@ export default function Home() {
       const zip = new JSZip();
       for (const img of bulkImages) {
         const base64 = img.dataUrl.split(",")[1];
-        const folder = zip.folder(img.label) || zip;
-        folder.file(`row${img.rowIndex}_${img.filename}`, base64, { base64: true });
+        const formatFolder = img.id.endsWith("_9x16")
+          ? "9x16"
+          : img.id.endsWith("_1080x1080")
+          ? "1080x1080"
+          : "original";
+        const baseId = img.id
+          .replace(/_9x16$/, "")
+          .replace(/_1080x1080$/, "");
+        zip.folder(baseId)!.folder(formatFolder)!.file(`row${img.rowIndex}_${img.filename}`, base64, { base64: true });
       }
       const blob = await zip.generateAsync({ type: "blob" });
       const url = URL.createObjectURL(blob);
@@ -256,10 +351,22 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-zinc-50 text-zinc-900">
       <div className="mx-auto max-w-5xl px-6 py-12">
-        <h1 className="text-2xl font-semibold tracking-tight">Ad Generator</h1>
-        <p className="mt-1 text-sm text-zinc-500">
-          Pick a category, type your copy, and generate every template in one go.
-        </p>
+        <div className="flex items-start justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight">Ad Generator</h1>
+            <p className="mt-1 text-sm text-zinc-500">
+              Pick a category, type your copy, and generate every template in one go.
+            </p>
+          </div>
+          <a
+            href="https://adgen.kjeldgaards.com/bibliotek"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 transition-colors"
+          >
+            Go to Library →
+          </a>
+        </div>
 
         <div className="mt-8 flex gap-2">
           {(["morten", "testimonial", "retinol"] as const).map((c) => (
@@ -472,18 +579,44 @@ export default function Home() {
               </button>
 
               {bulkImages.length > 0 && (
-                <div className="mt-4 flex items-center justify-between rounded-lg bg-zinc-50 px-4 py-3">
-                  <span className="text-sm text-zinc-700">
-                    {bulkImages.length} images generated from {bulkRows.length} row
-                    {bulkRows.length !== 1 ? "s" : ""}.
-                  </span>
-                  <button
-                    onClick={handleBulkDownloadZip}
-                    disabled={bulkZipping}
-                    className="rounded-full bg-white px-4 py-1.5 text-sm font-medium text-zinc-700 ring-1 ring-inset ring-zinc-300 hover:bg-zinc-100 disabled:opacity-50"
-                  >
-                    {bulkZipping ? "Zipping..." : "Download all (.zip)"}
-                  </button>
+                <div className="mt-4 rounded-lg bg-zinc-50 px-4 py-3 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-zinc-700">
+                      {bulkImages.length} images generated from {bulkRows.length} row
+                      {bulkRows.length !== 1 ? "s" : ""}.
+                    </span>
+                    <button
+                      onClick={handleBulkDownloadZip}
+                      disabled={bulkZipping}
+                      className="rounded-full bg-white px-4 py-1.5 text-sm font-medium text-zinc-700 ring-1 ring-inset ring-zinc-300 hover:bg-zinc-100 disabled:opacity-50"
+                    >
+                      {bulkZipping ? "Zipping..." : "Download all (.zip)"}
+                    </button>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2 border-t border-zinc-200 pt-3">
+                    <input
+                      type="text"
+                      placeholder="Label (e.g. New batch aug 2026)"
+                      value={bulkSaveLabel}
+                      onChange={(e) => setBulkSaveLabel(e.target.value)}
+                      disabled={bulkSaveStatus === "saved"}
+                      className="rounded-full border border-zinc-300 px-3 py-1.5 text-sm text-zinc-700 placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-zinc-400 disabled:opacity-50 w-56"
+                    />
+                    {bulkSaveStatus === "error" && (
+                      <span className="text-xs text-red-600 font-medium">{bulkSaveError || "Save failed — try again"}</span>
+                    )}
+                    <button
+                      onClick={saveBulkToLibrary}
+                      disabled={bulkSaving || bulkSaveStatus === "saved"}
+                      className="rounded-full bg-zinc-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-zinc-700 disabled:opacity-50 transition-colors"
+                    >
+                      {bulkSaving
+                        ? "Saving to Library..."
+                        : bulkSaveStatus === "saved"
+                        ? "Saved to Library ✓"
+                        : "Save to Library"}
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
@@ -492,42 +625,82 @@ export default function Home() {
 
         {images.length > 0 && (
           <div className="mt-10">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <h2 className="text-sm font-medium text-zinc-700">
                 {images.length} image{images.length !== 1 ? "s" : ""} generated
               </h2>
-              <button
-                onClick={handleDownloadAll}
-                disabled={zipping}
-                className="rounded-full bg-white px-4 py-1.5 text-sm font-medium text-zinc-700 ring-1 ring-inset ring-zinc-300 hover:bg-zinc-100 disabled:opacity-50"
-              >
-                {zipping ? "Zipping..." : "Download all (.zip)"}
-              </button>
-            </div>
-            <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
-              {images.map((img) => (
-                <div
-                  key={img.id}
-                  className="overflow-hidden rounded-xl bg-white ring-1 ring-zinc-200"
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  placeholder="Label (e.g. New batch aug 2026)"
+                  value={saveLabel}
+                  onChange={(e) => setSaveLabel(e.target.value)}
+                  disabled={saveStatus === "saved"}
+                  className="rounded-full border border-zinc-300 px-3 py-1.5 text-sm text-zinc-700 placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-zinc-400 disabled:opacity-50 w-56"
+                />
+                {saveStatus === "saved" && (
+                  <span className="text-xs text-green-600 font-medium">Saved to library ✓</span>
+                )}
+                {saveStatus === "error" && (
+                  <span className="text-xs text-red-600 font-medium">Save failed — try again</span>
+                )}
+                <button
+                  onClick={saveToLibrary}
+                  disabled={saving || saveStatus === "saved"}
+                  className="rounded-full bg-zinc-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-zinc-700 disabled:opacity-50 transition-colors"
                 >
-                  <img
-                    src={img.dataUrl}
-                    alt={img.label}
-                    className="aspect-square w-full object-cover"
-                  />
-                  <div className="flex items-center justify-between gap-2 p-2">
-                    <span className="truncate text-xs text-zinc-600">{img.label}</span>
-                    <a
-                      href={img.dataUrl}
-                      download={img.filename}
-                      className="shrink-0 text-xs font-medium text-zinc-900 underline"
-                    >
-                      Download
-                    </a>
+                  {saving ? "Saving..." : saveStatus === "saved" ? "Saved ✓" : "Save to Library"}
+                </button>
+                <button
+                  onClick={handleDownloadAll}
+                  disabled={zipping}
+                  className="rounded-full bg-white px-4 py-1.5 text-sm font-medium text-zinc-700 ring-1 ring-inset ring-zinc-300 hover:bg-zinc-100 disabled:opacity-50"
+                >
+                  {zipping ? "Zipping..." : "Download all (.zip)"}
+                </button>
+              </div>
+            </div>
+            {(["original", "1080x1080", "9x16"] as const).map((group) => {
+              const grouped = images.filter((img) =>
+                group === "original"
+                  ? !img.id.endsWith("_9x16") && !img.id.endsWith("_1080x1080")
+                  : group === "9x16"
+                  ? img.id.endsWith("_9x16")
+                  : img.id.endsWith("_1080x1080")
+              );
+              if (grouped.length === 0) return null;
+              return (
+                <div key={group} className="mt-8">
+                  <h3 className="mb-3 text-xs font-semibold uppercase tracking-widest text-zinc-400">
+                    {group === "original" ? "Original" : group}
+                  </h3>
+                  <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
+                    {grouped.map((img) => (
+                      <div
+                        key={img.id}
+                        className="overflow-hidden rounded-xl bg-white ring-1 ring-zinc-200"
+                      >
+                        <img
+                          src={img.dataUrl}
+                          alt={img.label}
+                          className="aspect-square w-full object-cover"
+                        />
+                        <div className="flex items-center justify-between gap-2 p-2">
+                          <span className="truncate text-xs text-zinc-600">{img.label}</span>
+                          <a
+                            href={img.dataUrl}
+                            download={img.filename}
+                            className="shrink-0 text-xs font-medium text-zinc-900 underline"
+                          >
+                            Download
+                          </a>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
-              ))}
-            </div>
+              );
+            })}
           </div>
         )}
       </div>

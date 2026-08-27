@@ -82,6 +82,49 @@ function drawHighlightedLines(
   }
 }
 
+// Ink-metrics variant of drawHighlightedLines — matches Python's anchor="mt" + bbox ink height
+function drawHighlightedLinesInk(
+  ctx: SKRSContext2D,
+  lines: string[],
+  font: string,
+  opts: {
+    imgW: number; yTop: number; padX: number; padY: number;
+    radius: number; lineSpacing: number; boxColor: string; textColor: string;
+  }
+) {
+  ctx.font = font;
+  const metrics = lines.map((line) => {
+    const mw = ctx.measureText(line);
+    const mh = ctx.measureText(line || "Ag");
+    const asc = mh.actualBoundingBoxAscent || 0;
+    return {
+      w: mw.width,
+      h: asc + (mh.actualBoundingBoxDescent || 0),
+      asc,
+    };
+  });
+
+  let y = opts.yTop;
+  for (const { w, h } of metrics) {
+    ctx.beginPath();
+    ctx.roundRect(opts.imgW / 2 - w / 2 - opts.padX, y - opts.padY,
+      w + opts.padX * 2, h + opts.padY * 2, opts.radius);
+    ctx.fillStyle = opts.boxColor;
+    ctx.fill();
+    y += h + opts.lineSpacing;
+  }
+
+  y = opts.yTop;
+  ctx.font = font;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "alphabetic";
+  ctx.fillStyle = opts.textColor;
+  for (let i = 0; i < lines.length; i++) {
+    ctx.fillText(lines[i], opts.imgW / 2, y + metrics[i].asc);
+    y += metrics[i].h + opts.lineSpacing;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Markdown-style "**bold**" mixed-weight text, used by retinol_8/9/10.
 // ---------------------------------------------------------------------------
@@ -148,6 +191,32 @@ function segmentLineHeight(
   return max;
 }
 
+// Ink-based metrics (actual bounding box, matching Python's bbox[3]-bbox[1] behavior)
+function segmentLineInkMetrics(
+  ctx: SKRSContext2D,
+  line: Segment[],
+  regFont: string,
+  boldFont: string
+): { height: number; ascent: number } {
+  let maxH = 0, maxAsc = 0;
+  for (const seg of line) {
+    const font = seg.bold ? boldFont : regFont;
+    ctx.font = font;
+    const m = ctx.measureText(seg.word || "Ag");
+    const asc = m.actualBoundingBoxAscent || 0;
+    const h = asc + (m.actualBoundingBoxDescent || 0);
+    if (h > maxH) { maxH = h; maxAsc = asc; }
+  }
+  return { height: maxH, ascent: maxAsc };
+}
+
+function inkMeasureStr(ctx: SKRSContext2D, text: string, font: string): { height: number; ascent: number } {
+  ctx.font = font;
+  const m = ctx.measureText(text || "Ag");
+  const asc = m.actualBoundingBoxAscent || 0;
+  return { height: asc + (m.actualBoundingBoxDescent || 0), ascent: asc };
+}
+
 function segmentLineWidth(
   ctx: SKRSContext2D,
   line: Segment[],
@@ -165,6 +234,7 @@ function segmentLineWidth(
   return w;
 }
 
+// y = ink-top of the line, inkAscent = distance from ink-top to baseline
 function drawSegmentLine(
   ctx: SKRSContext2D,
   line: Segment[],
@@ -172,17 +242,18 @@ function drawSegmentLine(
   y: number,
   regFont: string,
   boldFont: string,
-  color: string
+  color: string,
+  inkAscent: number = 0
 ) {
   ctx.textAlign = "left";
-  ctx.textBaseline = "top";
+  ctx.textBaseline = "alphabetic";
   ctx.fillStyle = color;
   let x = startX;
   for (let i = 0; i < line.length; i++) {
     const seg = line[i];
     const font = seg.bold ? boldFont : regFont;
     ctx.font = font;
-    ctx.fillText(seg.word, x, y);
+    ctx.fillText(seg.word, x, y + inkAscent);
     const wordW = ctx.measureText(seg.word).width;
     if (i < line.length - 1) {
       x += wordW + ctx.measureText(" ").width;
@@ -423,15 +494,9 @@ export const retinolTemplates: RetinolTemplate[] = [
       const combined = combine(headline, subheadline);
       const font = fontStr(FONT.bold700, 60);
       const lines = wrapText(ctx, combined, font, 960);
-      drawHighlightedLines(ctx, lines, font, {
-        imgW: IMG_W,
-        yTop: 100,
-        padX: 18,
-        padY: 14,
-        radius: 16,
-        lineSpacing: 18,
-        boxColor: BLACK,
-        textColor: WHITE,
+      drawHighlightedLinesInk(ctx, lines, font, {
+        imgW: IMG_W, yTop: 100, padX: 18, padY: 14,
+        radius: 16, lineSpacing: 18, boxColor: BLACK, textColor: WHITE,
       });
     },
   },
@@ -459,9 +524,7 @@ export const retinolTemplates: RetinolTemplate[] = [
         const regFont = fontStr(FONT.regular, size);
         const boldFont = fontStr(FONT.bold700, size);
         lines = layoutSegments(ctx, segments, regFont, boldFont, MAX_W);
-        const totalH =
-          lines.reduce((a, l) => a + segmentLineHeight(ctx, l, regFont, boldFont), 0) +
-          LINE_SPACING * (lines.length - 1);
+        const totalH = lines.reduce((a, l) => a + segmentLineInkMetrics(ctx, l, regFont, boldFont).height, 0) + LINE_SPACING * (lines.length - 1);
         if (totalH <= TEXT_BOTTOM - TEXT_Y_START) break;
       }
 
@@ -469,8 +532,8 @@ export const retinolTemplates: RetinolTemplate[] = [
       const boldFont = fontStr(FONT.bold700, size);
       let y = TEXT_Y_START;
       for (const line of lines) {
-        const h = segmentLineHeight(ctx, line, regFont, boldFont);
-        drawSegmentLine(ctx, line, TEXT_LEFT, y, regFont, boldFont, WHITE);
+        const { height: h, ascent } = segmentLineInkMetrics(ctx, line, regFont, boldFont);
+        drawSegmentLine(ctx, line, TEXT_LEFT, y, regFont, boldFont, WHITE, ascent);
         y += h + LINE_SPACING;
       }
     },
@@ -503,22 +566,19 @@ export const retinolTemplates: RetinolTemplate[] = [
         const regFont = fontStr(FONT.regular, size);
         const boldFont = fontStr(FONT.bold700, size);
         lines = layoutSegments(ctx, segments, regFont, boldFont, MAX_W);
-        const refLh = lineHeight(ctx, "Ag", boldFont);
+        const { height: refLh } = inkMeasureStr(ctx, "Ag", boldFont);
         const totalH = refLh * lines.length + LINE_SPACING * (lines.length - 1);
         if (totalH <= TEXT_BOTTOM - TEXT_Y) break;
       }
 
       const boldFont = fontStr(FONT.bold700, size);
       const regFont = fontStr(FONT.regular, size);
-      const fixedLh = lineHeight(ctx, "Ag", boldFont);
+      const { height: fixedLh, ascent: fixedAsc } = inkMeasureStr(ctx, "Ag", boldFont);
       const totalH = fixedLh * lines.length + LINE_SPACING * (lines.length - 1);
       const boxMid = (BOX_TOP + BOX_BOTTOM) / 2;
-      // Centered directly on our own measured block height — no extra
-      // leading offset, since that was tuned for a different rendering
-      // engine's specific baseline conventions and doesn't apply here.
-      let y = boxMid - totalH / 2;
+      let y = boxMid - totalH / 2 - 15;
       for (const line of lines) {
-        drawSegmentLine(ctx, line, TEXT_LEFT, y, regFont, boldFont, DARK);
+        drawSegmentLine(ctx, line, TEXT_LEFT, y, regFont, boldFont, DARK, fixedAsc);
         y += fixedLh + LINE_SPACING;
       }
     },
@@ -545,26 +605,22 @@ export const retinolTemplates: RetinolTemplate[] = [
 
       const metrics = lines.map((line) => ({
         w: segmentLineWidth(ctx, line, regFont, boldFont),
-        h: segmentLineHeight(ctx, line, regFont, boldFont),
+        ...segmentLineInkMetrics(ctx, line, regFont, boldFont),
       }));
 
       let y = 55;
-      for (const { w, h } of metrics) {
-        const x0 = IMG_W / 2 - w / 2 - 18;
-        const x1 = IMG_W / 2 + w / 2 + 18;
+      for (const { w, height } of metrics) {
         ctx.beginPath();
-        ctx.roundRect(x0, y - PAD_Y, x1 - x0, h + PAD_Y * 2, 14);
-        ctx.fillStyle = WHITE;
-        ctx.fill();
-        y += h + LINE_SPACING;
+        ctx.roundRect(IMG_W / 2 - w / 2 - 18, y - PAD_Y, w + 36, height + PAD_Y * 2 + 14, 14);
+        ctx.fillStyle = WHITE; ctx.fill();
+        y += height + LINE_SPACING;
       }
 
       y = 55;
       for (let i = 0; i < lines.length; i++) {
-        const { w, h } = metrics[i];
-        const x = IMG_W / 2 - w / 2;
-        drawSegmentLine(ctx, lines[i], x, y, regFont, boldFont, DARK);
-        y += h + LINE_SPACING;
+        const { w, height, ascent } = metrics[i];
+        drawSegmentLine(ctx, lines[i], IMG_W / 2 - w / 2, y, regFont, boldFont, DARK, ascent);
+        y += height + LINE_SPACING;
       }
     },
   },
@@ -648,13 +704,18 @@ export const retinolTemplates: RetinolTemplate[] = [
       const IMG_W = 1080;
       const combinedHl = combine(headline, subheadline);
       const hlFont = fontStr(FONT.bold700, 44);
-      const hlLines = wrapText(ctx, combinedHl, hlFont, 900);
-      drawHighlightedLines(ctx, hlLines, hlFont, { imgW: IMG_W, yTop: 110, padX: 18, padY: 14, radius: 14, lineSpacing: 10, boxColor: BLACK, textColor: WHITE });
+      const hlLines = wrapText(ctx, combinedHl, hlFont, 750);
+      drawHighlightedLinesInk(ctx, hlLines, hlFont, { imgW: IMG_W, yTop: 110, padX: 18, padY: 14, radius: 14, lineSpacing: 10, boxColor: BLACK, textColor: WHITE });
       if (body) {
-        const GREY_TOP=1020, GREY_BOT=1536, TEXT_LEFT=50, MAX_W_B=980;
+        const GREY_TOP=1060, GREY_BOT=1536, TEXT_LEFT=50, MAX_W_B=980;
         const greyH = GREY_BOT - GREY_TOP;
         const fit = autoFitSize(ctx, body, FONT.bold700, 46, 14, 1, MAX_W_B, greyH, () => 10);
-        drawMultilineText(ctx, fit.lines, TEXT_LEFT, GREY_TOP, fontStr(FONT.bold700, fit.size), { fill: DARK, spacing: fit.spacing });
+        const boldFont = fontStr(FONT.bold700, fit.size);
+        ctx.font = boldFont;
+        const mRef = ctx.measureText("Ag");
+        const inkAsc = mRef.actualBoundingBoxAscent || 0;
+        const fontOverhead = (mRef.fontBoundingBoxAscent || 0) - inkAsc;
+        drawMultilineText(ctx, fit.lines, TEXT_LEFT, GREY_TOP - fontOverhead, boldFont, { fill: DARK, spacing: fit.spacing });
       }
     },
   },
@@ -669,9 +730,16 @@ export const retinolTemplates: RetinolTemplate[] = [
       const greyH = GREY_BOT - GREY_TOP - 2 * greyPad;
       const combined = combine(headline, subheadline);
       const fit = autoFitSize(ctx, combined, FONT.bold700, 62, 20, 1, MAX_W, greyH, () => 8);
+      const boldFont5 = fontStr(FONT.bold700, fit.size);
+      ctx.font = boldFont5;
+      const m5 = ctx.measureText("Ag");
+      const inkAsc5 = m5.actualBoundingBoxAscent || 0;
+      const inkLh5 = inkAsc5 + (m5.actualBoundingBoxDescent || 0);
+      const inkBlockH5 = inkLh5 * fit.lines.length + fit.spacing * (fit.lines.length - 1);
+      const fontOverhead5 = (m5.fontBoundingBoxAscent || 0) - inkAsc5;
       const greyMid = (GREY_TOP + GREY_BOT) / 2;
-      const textY = greyMid - fit.blockHeight / 2 - 40;
-      drawMultilineText(ctx, fit.lines, TEXT_LEFT, textY, fontStr(FONT.bold700, fit.size), { fill: DARK, spacing: fit.spacing });
+      const textY = greyMid - inkBlockH5 / 2 - 40 - fontOverhead5;
+      drawMultilineText(ctx, fit.lines, TEXT_LEFT, textY, boldFont5, { fill: DARK, spacing: fit.spacing });
     },
   },
   {
@@ -685,9 +753,16 @@ export const retinolTemplates: RetinolTemplate[] = [
       const greyH = GREY_BOT - GREY_TOP - 2 * greyPad;
       const combined = combine(headline, subheadline);
       const fit = autoFitSize(ctx, combined, FONT.bold700, 62, 20, 1, MAX_W, greyH, () => 8);
-      const greyMid = (GREY_TOP + GREY_BOT) / 2;
-      const textY = greyMid - fit.blockHeight / 2 + vertShift;
-      drawMultilineText(ctx, fit.lines, TEXT_LEFT, textY, fontStr(FONT.bold700, fit.size), { fill: DARK, spacing: fit.spacing });
+      const boldFont6 = fontStr(FONT.bold700, fit.size);
+      ctx.font = boldFont6;
+      const m6 = ctx.measureText("Ag");
+      const inkAsc6 = m6.actualBoundingBoxAscent || 0;
+      const inkLh6 = inkAsc6 + (m6.actualBoundingBoxDescent || 0);
+      const inkBlockH6 = inkLh6 * fit.lines.length + fit.spacing * (fit.lines.length - 1);
+      const fontOverhead6 = (m6.fontBoundingBoxAscent || 0) - inkAsc6;
+      const greyMid6 = (GREY_TOP + GREY_BOT) / 2;
+      const textY = greyMid6 - inkBlockH6 / 2 + vertShift - fontOverhead6;
+      drawMultilineText(ctx, fit.lines, TEXT_LEFT, textY, boldFont6, { fill: DARK, spacing: fit.spacing });
     },
   },
   {
@@ -700,7 +775,7 @@ export const retinolTemplates: RetinolTemplate[] = [
       const combined = combine(headline, subheadline);
       const font = fontStr(FONT.bold700, 59);
       const lines = wrapText(ctx, combined, font, 951);
-      drawHighlightedLines(ctx, lines, font, { imgW: IMG_W, yTop: 142, padX: 18, padY: 14, radius: 16, lineSpacing: 25, boxColor: BLACK, textColor: WHITE });
+      drawHighlightedLinesInk(ctx, lines, font, { imgW: IMG_W, yTop: 142, padX: 18, padY: 14, radius: 16, lineSpacing: 25, boxColor: BLACK, textColor: WHITE });
     },
   },
   {
@@ -709,22 +784,22 @@ export const retinolTemplates: RetinolTemplate[] = [
     outSuffix: "retinol8", width: 1080, height: 1920,
     render(ctx, canvas, { headline, subheadline }) {
       const WHITE = rgb(255,255,255);
-      const TEXT_LEFT=59, MAX_W=1021-59, TEXT_Y_START=726, TEXT_BOTTOM=1034, LINE_SPACING=14;
+      const TEXT_LEFT=58, MAX_W=963, TEXT_Y_START=1289, TEXT_BOTTOM=1836, LINE_SPACING=25;
       const combined = combine(headline, subheadline);
       if (!combined) return;
       const segments = parseSegments(combined);
-      let size = 52, lines: Segment[][] = [];
-      for (size = 52; size >= 20; size--) {
+      let size = 51, lines: Segment[][] = [];
+      for (size = 51; size >= 20; size--) {
         const regFont = fontStr(FONT.regular, size), boldFont = fontStr(FONT.bold700, size);
         lines = layoutSegments(ctx, segments, regFont, boldFont, MAX_W);
-        const totalH = lines.reduce((a,l) => a + segmentLineHeight(ctx,l,regFont,boldFont), 0) + LINE_SPACING*(lines.length-1);
+        const totalH = lines.reduce((a,l) => a + segmentLineInkMetrics(ctx,l,regFont,boldFont).height, 0) + LINE_SPACING*(lines.length-1);
         if (totalH <= TEXT_BOTTOM - TEXT_Y_START) break;
       }
       const regFont = fontStr(FONT.regular, size), boldFont = fontStr(FONT.bold700, size);
       let y = TEXT_Y_START;
       for (const line of lines) {
-        const h = segmentLineHeight(ctx, line, regFont, boldFont);
-        drawSegmentLine(ctx, line, TEXT_LEFT, y, regFont, boldFont, WHITE);
+        const { height: h, ascent } = segmentLineInkMetrics(ctx, line, regFont, boldFont);
+        drawSegmentLine(ctx, line, TEXT_LEFT, y, regFont, boldFont, WHITE, ascent);
         y += h + LINE_SPACING;
       }
     },
@@ -736,10 +811,12 @@ export const retinolTemplates: RetinolTemplate[] = [
     render(ctx, canvas, { headline, subheadline }) {
       const DARK = rgb(20,20,20);
       const BOX_TOP=1155, BOX_BOT=1440;
-      const PAD_X=55*1080/1142, TEXT_LEFT=Math.round(92*1080/1142 + PAD_X);
+      const PAD_X=55*1080/1142, PAD_Y=75;
+      const TEXT_LEFT=Math.round(92*1080/1142 + PAD_X);
       const TEXT_RIGHT=Math.round(1087*1080/1142 - PAD_X);
       const MAX_W = TEXT_RIGHT - TEXT_LEFT;
       const LINE_SPACING = 14;
+      const AVAIL_H = (BOX_BOT - PAD_Y) - (BOX_TOP + PAD_Y);
       const combined = combine(headline, subheadline);
       if (!combined) return;
       const segments = parseSegments(combined);
@@ -747,17 +824,17 @@ export const retinolTemplates: RetinolTemplate[] = [
       for (size = 46; size >= 20; size--) {
         const regFont = fontStr(FONT.regular, size), boldFont = fontStr(FONT.bold700, size);
         lines = layoutSegments(ctx, segments, regFont, boldFont, MAX_W);
-        const refLh = lineHeight(ctx, "Ag", boldFont);
+        const { height: refLh } = inkMeasureStr(ctx, "Ag", boldFont);
         const totalH = refLh * lines.length + LINE_SPACING * (lines.length - 1);
-        if (totalH <= BOX_BOT - BOX_TOP) break;
+        if (totalH <= AVAIL_H) break;
       }
       const boldFont = fontStr(FONT.bold700, size), regFont = fontStr(FONT.regular, size);
-      const fixedLh = lineHeight(ctx, "Ag", boldFont);
+      const { height: fixedLh, ascent: fixedAsc } = inkMeasureStr(ctx, "Ag", boldFont);
       const totalH = fixedLh * lines.length + LINE_SPACING * (lines.length - 1);
       const boxMid = (BOX_TOP + BOX_BOT) / 2;
-      let y = boxMid - totalH / 2 - 12;
+      let y = boxMid - totalH / 2 - 4;
       for (const line of lines) {
-        drawSegmentLine(ctx, line, TEXT_LEFT, y, regFont, boldFont, DARK);
+        drawSegmentLine(ctx, line, TEXT_LEFT, y, regFont, boldFont, DARK, fixedAsc);
         y += fixedLh + LINE_SPACING;
       }
     },
@@ -774,16 +851,17 @@ export const retinolTemplates: RetinolTemplate[] = [
       const segments = parseSegments(combined);
       const regFont = fontStr(FONT.regular, HEADLINE_SIZE), boldFont = fontStr(FONT.bold700, HEADLINE_SIZE);
       const lines = layoutSegments(ctx, segments, regFont, boldFont, 980);
-      const metrics = lines.map((line) => ({ w: segmentLineWidth(ctx,line,regFont,boldFont), h: segmentLineHeight(ctx,line,regFont,boldFont) }));
+      const metrics = lines.map((line) => ({ w: segmentLineWidth(ctx,line,regFont,boldFont), ...segmentLineInkMetrics(ctx,line,regFont,boldFont) }));
       let y = 125;
-      for (const { w, h } of metrics) {
-        ctx.beginPath(); ctx.roundRect(IMG_W/2-w/2-18, y-PAD_Y, w+36, h+PAD_Y*2, 14);
-        ctx.fillStyle = WHITE; ctx.fill(); y += h + LINE_SPACING;
+      for (const { w, height } of metrics) {
+        ctx.beginPath(); ctx.roundRect(IMG_W/2-w/2-18, y-PAD_Y, w+36, height+PAD_Y*2, 14);
+        ctx.fillStyle = WHITE; ctx.fill(); y += height + LINE_SPACING;
       }
       y = 125;
       for (let i = 0; i < lines.length; i++) {
-        drawSegmentLine(ctx, lines[i], IMG_W/2-metrics[i].w/2, y, regFont, boldFont, DARK);
-        y += metrics[i].h + LINE_SPACING;
+        const { w, height, ascent } = metrics[i];
+        drawSegmentLine(ctx, lines[i], IMG_W/2-w/2, y, regFont, boldFont, DARK, ascent);
+        y += height + LINE_SPACING;
       }
     },
   },
@@ -824,9 +902,9 @@ export const retinolTemplates: RetinolTemplate[] = [
       const combinedHl = combine(headline, subheadline);
       if (combinedHl) {
         const availableHlH = Math.floor((TEXT_BOTTOM - TEXT_TOP) / 2);
-        const fit = autoFitSize(ctx, combinedHl, FONT.bold700, 36, 18, 1, MAX_W, availableHlH, () => 4);
+        const fit = autoFitSize(ctx, combinedHl, FONT.bold700, 30, 20, 1, MAX_W, availableHlH, () => 10);
         drawMultilineText(ctx, fit.lines, TEXT_LEFT, y, fontStr(FONT.bold700, fit.size), { fill: BLACK, spacing: fit.spacing });
-        y += fit.blockHeight + 34;
+        y += fit.blockHeight + 40;
       }
       if (body) {
         const availableH = TEXT_BOTTOM - y;
@@ -841,13 +919,13 @@ export const retinolTemplates: RetinolTemplate[] = [
     outSuffix: "retinol3", width: 1080, height: 1080,
     render(ctx, canvas, { headline, subheadline }) {
       const WHITE = rgb(255,255,255);
-      const CENTER_X = 540, MAX_W = 1000, Y_HEADLINE = 131;
+      const CENTER_X = 540, MAX_W = 1000, Y_HEADLINE = 120;
       let y = Y_HEADLINE;
       if (headline) {
         const font = fontStr(FONT.serifBold, 48);
         const lines = wrapText(ctx, headline, font, MAX_W);
-        drawMultilineText(ctx, lines, CENTER_X, y, font, { fill: WHITE, spacing: 13, align: "center" });
-        y += multilineHeight(ctx, lines, font, 13) + 60;
+        drawMultilineText(ctx, lines, CENTER_X, y, font, { fill: WHITE, spacing: 9, align: "center" });
+        y += multilineHeight(ctx, lines, font, 9) + 37;
       }
       if (subheadline) {
         const font = fontStr(FONT.serifBold, 36);
@@ -865,15 +943,19 @@ export const retinolTemplates: RetinolTemplate[] = [
       const IMG_W = 1080;
       const combinedHl = combine(headline, subheadline);
       const hlFont = fontStr(FONT.bold700, 36);
-      const hlLines = wrapText(ctx, combinedHl, hlFont, 680);
-      drawHighlightedLines(ctx, hlLines, hlFont, { imgW: IMG_W, yTop: 80, padX: 18, padY: 14, radius: 14, lineSpacing: 10, boxColor: BLACK, textColor: WHITE });
+      const hlLines = wrapText(ctx, combinedHl, hlFont, 750);
+      drawHighlightedLinesInk(ctx, hlLines, hlFont, { imgW: IMG_W, yTop: 90, padX: 18, padY: 14, radius: 14, lineSpacing: 10, boxColor: BLACK, textColor: WHITE });
       if (body) {
         const GREY_TOP=750, GREY_BOT=1080, TEXT_LEFT=50, MAX_W_B=980, greyPad=25;
         const greyH = GREY_BOT - GREY_TOP - 2 * greyPad;
         const fit = autoFitSize(ctx, body, FONT.bold700, 36, 14, 1, MAX_W_B, greyH, () => 10);
+        const boldFont = fontStr(FONT.bold700, fit.size);
+        const { height: inkLh, ascent: inkAsc } = inkMeasureStr(ctx, "Ag", boldFont);
+        const inkBlockH = inkLh * fit.lines.length + fit.spacing * (fit.lines.length - 1);
+        ctx.font = boldFont; const fBBAsc = ctx.measureText("Ag").fontBoundingBoxAscent || 0;
         const greyMid = (GREY_TOP + GREY_BOT) / 2;
-        const textY = greyMid - fit.blockHeight / 2 - 18;
-        drawMultilineText(ctx, fit.lines, TEXT_LEFT, textY, fontStr(FONT.bold700, fit.size), { fill: DARK, spacing: fit.spacing });
+        const textY = greyMid - inkBlockH / 2 - 28 - (fBBAsc - inkAsc);
+        drawMultilineText(ctx, fit.lines, TEXT_LEFT, textY, boldFont, { fill: DARK, spacing: fit.spacing });
       }
     },
   },
@@ -921,11 +1003,11 @@ export const retinolTemplates: RetinolTemplate[] = [
       for (let size = 59; size >= 18; size--) {
         font = fontStr(FONT.bold700, size);
         lines = wrapText(ctx, combined, font, 951);
-        const metrics = lines.map(l => lineHeight(ctx, l, font));
-        const totalH = metrics.reduce((a,h)=>a+h,0) + 18*(lines.length-1);
+        const inkMetrics = lines.map(l => inkMeasureStr(ctx, l, font).height);
+        const totalH = inkMetrics.reduce((a,h)=>a+h,0) + 18*(lines.length-1);
         if (yTop + totalH <= MAX_TEXT_BOT) break;
       }
-      drawHighlightedLines(ctx, lines, font, { imgW: IMG_W, yTop, padX: 18, padY: 14, radius: 16, lineSpacing: 18, boxColor: BLACK, textColor: WHITE });
+      drawHighlightedLinesInk(ctx, lines, font, { imgW: IMG_W, yTop, padX: 18, padY: 14, radius: 16, lineSpacing: 18, boxColor: BLACK, textColor: WHITE });
     },
   },
   {
@@ -942,14 +1024,14 @@ export const retinolTemplates: RetinolTemplate[] = [
       for (size = 52; size >= 20; size--) {
         const regFont = fontStr(FONT.regular, size), boldFont = fontStr(FONT.bold700, size);
         lines = layoutSegments(ctx, segments, regFont, boldFont, MAX_W);
-        const totalH = lines.reduce((a,l)=>a+segmentLineHeight(ctx,l,regFont,boldFont),0) + LINE_SPACING*(lines.length-1);
+        const totalH = lines.reduce((a,l)=>a+segmentLineInkMetrics(ctx,l,regFont,boldFont).height,0) + LINE_SPACING*(lines.length-1);
         if (totalH <= TEXT_BOTTOM - TEXT_Y_START) break;
       }
       const regFont = fontStr(FONT.regular, size), boldFont = fontStr(FONT.bold700, size);
       let y = TEXT_Y_START;
       for (const line of lines) {
-        const h = segmentLineHeight(ctx, line, regFont, boldFont);
-        drawSegmentLine(ctx, line, TEXT_LEFT, y, regFont, boldFont, WHITE);
+        const { height: h, ascent } = segmentLineInkMetrics(ctx, line, regFont, boldFont);
+        drawSegmentLine(ctx, line, TEXT_LEFT, y, regFont, boldFont, WHITE, ascent);
         y += h + LINE_SPACING;
       }
     },
@@ -960,12 +1042,13 @@ export const retinolTemplates: RetinolTemplate[] = [
     outSuffix: "retinol9", width: 1080, height: 1080,
     render(ctx, canvas, { headline, subheadline }) {
       const DARK = rgb(20,20,20);
-      const sx = 1080/1142;
-      const BOX_TOP = Math.round(649*sx), BOX_BOT = Math.round(949*sx);
-      const PAD_X = Math.round(55*sx);
+      const sx = 1080/1142, sy = 1080/1144;
+      const BOX_TOP = Math.round(649*sy), BOX_BOT = Math.round(949*sy);
+      const PAD_X = Math.round(55*sx), PAD_Y9 = Math.round(45*sy);
       const TEXT_LEFT = Math.round(92*sx) + PAD_X;
       const MAX_W = Math.round(1087*sx) - PAD_X - TEXT_LEFT;
       const LINE_SPACING = 14;
+      const AVAIL_H = (BOX_BOT - PAD_Y9) - (BOX_TOP + PAD_Y9);
       const combined = combine(headline, subheadline);
       if (!combined) return;
       const segments = parseSegments(combined);
@@ -973,17 +1056,17 @@ export const retinolTemplates: RetinolTemplate[] = [
       for (size = 46; size >= 20; size--) {
         const regFont = fontStr(FONT.regular, size), boldFont = fontStr(FONT.bold700, size);
         lines = layoutSegments(ctx, segments, regFont, boldFont, MAX_W);
-        const refLh = lineHeight(ctx, "Ag", boldFont);
+        const { height: refLh } = inkMeasureStr(ctx, "Ag", boldFont);
         const totalH = refLh * lines.length + LINE_SPACING * (lines.length - 1);
-        if (totalH <= BOX_BOT - BOX_TOP) break;
+        if (totalH <= AVAIL_H) break;
       }
       const boldFont = fontStr(FONT.bold700, size), regFont = fontStr(FONT.regular, size);
-      const fixedLh = lineHeight(ctx, "Ag", boldFont);
+      const { height: fixedLh, ascent: fixedAsc } = inkMeasureStr(ctx, "Ag", boldFont);
       const totalH = fixedLh * lines.length + LINE_SPACING * (lines.length - 1);
       const boxMid = (BOX_TOP + BOX_BOT) / 2;
-      let y = boxMid - totalH / 2;
+      let y = boxMid - totalH / 2 - 4;
       for (const line of lines) {
-        drawSegmentLine(ctx, line, TEXT_LEFT, y, regFont, boldFont, DARK);
+        drawSegmentLine(ctx, line, TEXT_LEFT, y, regFont, boldFont, DARK, fixedAsc);
         y += fixedLh + LINE_SPACING;
       }
     },
@@ -1003,16 +1086,17 @@ export const retinolTemplates: RetinolTemplate[] = [
       const segments = parseSegments(combined);
       const regFont = fontStr(FONT.regular, HEADLINE_SIZE), boldFont = fontStr(FONT.bold700, HEADLINE_SIZE);
       const lines = layoutSegments(ctx, segments, regFont, boldFont, Math.round(760*sx));
-      const metrics = lines.map((line) => ({ w: segmentLineWidth(ctx,line,regFont,boldFont), h: segmentLineHeight(ctx,line,regFont,boldFont) }));
+      const metrics = lines.map((line) => ({ w: segmentLineWidth(ctx,line,regFont,boldFont), ...segmentLineInkMetrics(ctx,line,regFont,boldFont) }));
       let y = Math.round(55*sx);
-      for (const { w, h } of metrics) {
-        ctx.beginPath(); ctx.roundRect(IMG_W/2-w/2-18, y-PAD_Y, w+36, h+PAD_Y*2, 14);
-        ctx.fillStyle = WHITE; ctx.fill(); y += h + LINE_SPACING;
+      for (const { w, height } of metrics) {
+        ctx.beginPath(); ctx.roundRect(IMG_W/2-w/2-18, y-PAD_Y, w+36, height+PAD_Y*2, 14);
+        ctx.fillStyle = WHITE; ctx.fill(); y += height + LINE_SPACING;
       }
       y = Math.round(55*sx);
       for (let i = 0; i < lines.length; i++) {
-        drawSegmentLine(ctx, lines[i], IMG_W/2-metrics[i].w/2, y, regFont, boldFont, DARK);
-        y += metrics[i].h + LINE_SPACING;
+        const { w, height, ascent } = metrics[i];
+        drawSegmentLine(ctx, lines[i], IMG_W/2-w/2, y, regFont, boldFont, DARK, ascent);
+        y += height + LINE_SPACING;
       }
     },
   },

@@ -37,6 +37,42 @@ function autoFitLines(
   return { size, lines, heights };
 }
 
+/** Measures actual ink bounds — matches Python's bbox[3]-bbox[1] approach. */
+function inkMeasure(ctx: SKRSContext2D, text: string, font: string) {
+  ctx.font = font;
+  const m = ctx.measureText(text || "Ag");
+  const ascent = m.actualBoundingBoxAscent || 0;
+  const descent = m.actualBoundingBoxDescent || 0;
+  return { height: ascent + descent, ascent };
+}
+
+/** autoFitLines variant that uses actual ink height (matches Python). Returns ascents too. */
+function autoFitLinesInk(
+  ctx: SKRSContext2D,
+  text: string,
+  maxSize: number,
+  minSize: number,
+  step: number,
+  maxWidth: number,
+  fitHeight: (lines: string[], lineHeights: number[]) => boolean
+) {
+  let lines: string[] = [];
+  let size = maxSize;
+  let heights: number[] = [];
+  let ascents: number[] = [];
+  for (size = maxSize; size >= minSize; size -= step) {
+    const font = fontStr(FONT.bold700, size);
+    lines = wrapText(ctx, text, font, maxWidth);
+    heights = []; ascents = [];
+    for (const l of lines) {
+      const m = inkMeasure(ctx, l, font);
+      heights.push(m.height); ascents.push(m.ascent);
+    }
+    if (fitHeight(lines, heights)) break;
+  }
+  return { size, lines, heights, ascents };
+}
+
 /** Group A: per-line box, horizontally centered on x_center, each box sized to its own line. */
 function renderCenteredBoxes(
   ctx: SKRSContext2D,
@@ -61,7 +97,7 @@ function renderCenteredBoxes(
   const xCenter = width / 2;
   const maxW = width - opts.xMargin - (opts.rightMargin ?? opts.xMargin);
 
-  const { size, lines, heights } = autoFitLines(
+  const { size, lines, heights, ascents } = autoFitLinesInk(
     ctx,
     text,
     opts.maxSize,
@@ -78,13 +114,12 @@ function renderCenteredBoxes(
 
   let y = opts.yBottom - totalH;
   ctx.textAlign = "center";
-  ctx.textBaseline = "top";
+  ctx.textBaseline = "alphabetic";
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const lineW = textWidth(ctx, line, font);
     const lineH = heights[i];
-    // Round to whole pixels so adjacent boxes share an identical edge instead
-    // of leaving an anti-aliasing seam (see renderBlockLeftBoxes for detail).
+    const ascent = ascents[i];
     const boxLeft = Math.round(xCenter - lineW / 2 - opts.padX);
     const boxRight = Math.round(xCenter + lineW / 2 + opts.padX);
     const boxTop = Math.round(y);
@@ -101,7 +136,8 @@ function renderCenteredBoxes(
 
     ctx.font = font;
     ctx.fillStyle = opts.textColor;
-    ctx.fillText(line, xCenter, boxTop + opts.padTop);
+    // ink top at boxTop + padTop, matching Python's box_top + PAD_TOP - bbox[1]
+    ctx.fillText(line, xCenter, boxTop + opts.padTop + ascent);
     y = boxBot;
   }
 }
@@ -129,7 +165,7 @@ function renderBlockLeftBoxes(
   const { width } = canvas;
   const maxW = width - opts.xMargin - opts.rightMargin;
 
-  const { size, lines, heights } = autoFitLines(
+  const { size, lines, heights, ascents } = autoFitLinesInk(
     ctx,
     text,
     opts.maxSize,
@@ -150,14 +186,11 @@ function renderBlockLeftBoxes(
 
   let y = opts.yBottom - totalH;
   ctx.textAlign = "left";
-  ctx.textBaseline = "top";
+  ctx.textBaseline = "alphabetic";
   for (let i = 0; i < lines.length; i++) {
     const lineW = lineWidths[i];
     const lineH = heights[i];
-    // Round to whole pixels so this box's bottom edge and the next box's top
-    // edge land on the exact same pixel row — otherwise two separately
-    // anti-aliased rectangles sharing a fractional-pixel edge leave a hairline
-    // gap where the photo behind them peeks through.
+    const ascent = ascents[i];
     const boxLeft = Math.round(xLeft - opts.padX);
     const boxRight = Math.round(xLeft + lineW + opts.padX);
     const boxTop = Math.round(y);
@@ -168,7 +201,7 @@ function renderBlockLeftBoxes(
 
     ctx.font = font;
     ctx.fillStyle = opts.textColor;
-    ctx.fillText(lines[i], xLeft, boxTop + opts.padTop);
+    ctx.fillText(lines[i], xLeft, boxTop + opts.padTop + ascent);
     y = boxBot;
   }
 }
@@ -482,37 +515,37 @@ export const mortenTemplates: MortenTemplate[] = [
       const YELLOW_TOP = 1140, YELLOW_BOTTOM = 1540;
       const { width } = canvas;
       const maxW = width - 2 * X_MARGIN;
-      const { size, lines, heights } = autoFitLines(ctx, text, 90, 20, 2, maxW, (_, hs) => {
+      const { size, lines, heights, ascents } = autoFitLinesInk(ctx, text, 90, 20, 2, maxW, (_, hs) => {
         const totalH = hs.reduce((a, h) => a + h, 0) + LINE_GAP * (hs.length - 1);
         return totalH <= YELLOW_BOTTOM - YELLOW_TOP - TOP_GAP;
       });
       const font = fontStr(FONT.bold700, size);
       let y = YELLOW_TOP + TOP_GAP;
-      ctx.textAlign = "left"; ctx.textBaseline = "top"; ctx.font = font; ctx.fillStyle = rgb(0,0,0);
+      ctx.textAlign = "left"; ctx.textBaseline = "alphabetic"; ctx.font = font; ctx.fillStyle = rgb(0,0,0);
       for (let i = 0; i < lines.length; i++) {
-        ctx.fillText(lines[i], X_MARGIN, y);
+        ctx.fillText(lines[i], X_MARGIN, y + ascents[i]);
         y += heights[i] + LINE_GAP;
       }
     },
   },
   {
     id: "morten_5_9x16", label: "Morten 5 – 9×16",
-    baseImage: path.join(BASES, "morten_base_5_9x16.jpg"),
+    baseImage: path.join(BASES, "morten_base_5_9x16ny.jpg"),
     outSuffix: "morten", width: 1080, height: 1920,
     render(ctx, canvas, { text }) {
       renderBlockLeftBoxes(ctx, canvas, text, {
         maxSize: 44, minSize: 18, xMargin: 54, rightMargin: 54, padX: 22, padTop: 12, padBottom: 7,
-        yBottom: 1540, yTopMax: 1200, boxColor: rgb(30,72,255), textColor: rgb(255,255,255),
+        yBottom: 1540, yTopMax: 1200, boxColor: rgb(42,71,246), textColor: rgb(255,255,255),
       });
     },
   },
   {
     id: "morten_6_9x16", label: "Morten 6 – 9×16",
-    baseImage: path.join(BASES, "morten_base_6_9x16.jpg"),
+    baseImage: path.join(BASES, "morten_base_6_9x16ny.jpg"),
     outSuffix: "morten", width: 1080, height: 1920,
     render(ctx, canvas, { text }) {
       renderBlockLeftBoxes(ctx, canvas, text, {
-        maxSize: 56, minSize: 18, xMargin: 54, rightMargin: 120, padX: 17, padTop: 15, padBottom: 8,
+        maxSize: 56, minSize: 18, xMargin: 54, rightMargin: 120, padX: 17, padTop: 15, padBottom: 16,
         yBottom: 1540, yTopMax: 1200, boxColor: rgb(0,0,0), textColor: rgb(255,255,255),
       });
     },
@@ -526,21 +559,23 @@ export const mortenTemplates: MortenTemplate[] = [
       const Y_BOTTOM = 1540, Y_TOP_MAX = 1200;
       const { width } = canvas;
       const xCenter = width / 2;
-      let lines: string[] = [], heights: number[] = [], size = 20;
+      let lines: string[] = [], heights: number[] = [], ascents: number[] = [], size = 20;
       for (size = 72; size >= 20; size -= 2) {
         const font = fontStr(FONT.bold700, size);
-        lines = wrapText(ctx, text, font, width - 2 * X_MARGIN);
-        heights = lines.map((l) => lineHeight(ctx, l, font));
+        lines = wrapText(ctx, text, font, width - 2 * X_MARGIN - 2 * STROKE);
+        heights = []; ascents = [];
+        for (const l of lines) { const m = inkMeasure(ctx, l, font); heights.push(m.height + 2 * STROKE); ascents.push(m.ascent + STROKE); }
         const totalH = heights.reduce((a, h) => a + h, 0) + LINE_GAP * (heights.length - 1);
         if (totalH <= Y_BOTTOM - Y_TOP_MAX) break;
       }
       const font = fontStr(FONT.bold700, size);
       const totalH = heights.reduce((a, h) => a + h, 0) + LINE_GAP * (heights.length - 1);
       let y = Y_BOTTOM - totalH;
-      ctx.textAlign = "center"; ctx.textBaseline = "top"; ctx.font = font; ctx.lineJoin = "round";
+      ctx.textAlign = "center"; ctx.textBaseline = "alphabetic"; ctx.font = font; ctx.lineJoin = "round";
       for (let i = 0; i < lines.length; i++) {
-        ctx.lineWidth = STROKE * 2; ctx.strokeStyle = rgb(0,0,0); ctx.strokeText(lines[i], xCenter, y);
-        ctx.fillStyle = rgb(255,255,255); ctx.fillText(lines[i], xCenter, y);
+        const ty = y + ascents[i];
+        ctx.lineWidth = STROKE * 2; ctx.strokeStyle = rgb(0,0,0); ctx.strokeText(lines[i], xCenter, ty);
+        ctx.fillStyle = rgb(255,255,255); ctx.fillText(lines[i], xCenter, ty);
         y += heights[i] + LINE_GAP;
       }
     },
@@ -563,23 +598,25 @@ export const mortenTemplates: MortenTemplate[] = [
     render(ctx, canvas, { text }) {
       const X_MARGIN = 45, RIGHT_MARGIN = 45, LINE_GAP = 18;
       const YELLOW_TOP = 1013, YELLOW_BOTTOM = 1540;
+      const TOP_PAD = 20;
       const { width } = canvas;
       const maxW = width - X_MARGIN - RIGHT_MARGIN;
-      let lines: string[] = [], heights: number[] = [], size = 18;
+      let lines: string[] = [], heights: number[] = [], ascents: number[] = [], size = 18;
       for (size = 64; size >= 18; size -= 2) {
         const font = fontStr(FONT.bold700, size);
         lines = wrapText(ctx, text, font, maxW);
-        heights = lines.map((l) => lineHeight(ctx, l, font));
+        heights = []; ascents = [];
+        for (const l of lines) { const m = inkMeasure(ctx, l, font); heights.push(m.height); ascents.push(m.ascent); }
         const totalH = heights.reduce((a, h) => a + h, 0) + LINE_GAP * (heights.length - 1);
         if (totalH <= YELLOW_BOTTOM - YELLOW_TOP) break;
       }
       const totalH = heights.reduce((a, h) => a + h, 0) + LINE_GAP * (heights.length - 1);
       const leftover = YELLOW_BOTTOM - YELLOW_TOP - totalH;
-      let y = YELLOW_TOP + leftover * 0.3;
-      ctx.textAlign = "left"; ctx.textBaseline = "top";
+      let y = Math.max(YELLOW_TOP + TOP_PAD, YELLOW_TOP + leftover * 0.3);
+      ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
       ctx.font = fontStr(FONT.bold700, size); ctx.fillStyle = rgb(0,0,0);
       for (let i = 0; i < lines.length; i++) {
-        ctx.fillText(lines[i], X_MARGIN, y); y += heights[i] + LINE_GAP;
+        ctx.fillText(lines[i], X_MARGIN, y + ascents[i]); y += heights[i] + LINE_GAP;
       }
     },
   },
@@ -613,8 +650,8 @@ export const mortenTemplates: MortenTemplate[] = [
     outSuffix: "morten", width: 1080, height: 1080,
     render(ctx, canvas, { text }) {
       renderBlockLeftBoxes(ctx, canvas, text, {
-        maxSize: 36, minSize: 16, xMargin: 46, rightMargin: 100, padX: 20, padTop: 18, padBottom: 10,
-        yBottom: 916, yTopMax: 618, boxColor: rgb(0,0,0), textColor: rgb(255,255,255),
+        maxSize: 36, minSize: 16, xMargin: 49, rightMargin: 106, padX: 20, padTop: 18, padBottom: 10,
+        yBottom: 972, yTopMax: 656, boxColor: rgb(0,0,0), textColor: rgb(255,255,255),
       });
     },
   },
@@ -624,8 +661,8 @@ export const mortenTemplates: MortenTemplate[] = [
     outSuffix: "morten", width: 1080, height: 1080,
     render(ctx, canvas, { text }) {
       renderBlockLeftBoxes(ctx, canvas, text, {
-        maxSize: 32, minSize: 16, xMargin: 51, rightMargin: 120, padX: 24, padTop: 12, padBottom: 7,
-        yBottom: 916, yTopMax: 618, boxColor: rgb(254,209,30), textColor: rgb(0,0,0),
+        maxSize: 32, minSize: 16, xMargin: 54, rightMargin: 127, padX: 24, padTop: 12, padBottom: 7,
+        yBottom: 972, yTopMax: 656, boxColor: rgb(254,209,30), textColor: rgb(0,0,0),
       });
     },
   },
@@ -634,43 +671,43 @@ export const mortenTemplates: MortenTemplate[] = [
     baseImage: path.join(BASES, "morten_base_4_1080x1080.jpg"),
     outSuffix: "morten", width: 1080, height: 1080,
     render(ctx, canvas, { text }) {
-      const X_MARGIN = 47, LINE_GAP = 24, TOP_GAP = 8, BOTTOM_GAP = 8;
-      const YELLOW_TOP = 743, YELLOW_BOTTOM = 990;
+      const X_MARGIN = 50, LINE_GAP = 24, TOP_GAP = 8, BOTTOM_GAP = 8;
+      const YELLOW_TOP = 788, YELLOW_BOTTOM = 1050;
       const { width } = canvas;
       const maxW = width - 2 * X_MARGIN;
-      const { size, lines, heights } = autoFitLines(ctx, text, 90, 20, 2, maxW, (_, hs) => {
+      const { size, lines, heights, ascents } = autoFitLinesInk(ctx, text, 90, 20, 2, maxW, (_, hs) => {
         const totalH = hs.reduce((a, h) => a + h, 0) + LINE_GAP * (hs.length - 1);
         return totalH <= YELLOW_BOTTOM - YELLOW_TOP - TOP_GAP - BOTTOM_GAP;
       });
       const font = fontStr(FONT.bold700, size);
       const totalH = heights.reduce((a, h) => a + h, 0) + LINE_GAP * (heights.length - 1);
       const leftover = YELLOW_BOTTOM - YELLOW_TOP - totalH;
-      let y = YELLOW_TOP + leftover * 0.5;
-      ctx.textAlign = "left"; ctx.textBaseline = "top"; ctx.font = font; ctx.fillStyle = rgb(0,0,0);
+      let y = YELLOW_TOP + leftover * 0.58;
+      ctx.textAlign = "left"; ctx.textBaseline = "alphabetic"; ctx.font = font; ctx.fillStyle = rgb(0,0,0);
       for (let i = 0; i < lines.length; i++) {
-        ctx.fillText(lines[i], X_MARGIN, y); y += heights[i] + LINE_GAP;
+        ctx.fillText(lines[i], X_MARGIN, y + ascents[i]); y += heights[i] + LINE_GAP;
       }
     },
   },
   {
     id: "morten_5_1080x1080", label: "Morten 5 – 1080×1080",
-    baseImage: path.join(BASES, "morten_base_5_1080x1080.jpg"),
+    baseImage: path.join(BASES, "morten_base_5_1080x1080ny.jpg"),
     outSuffix: "morten", width: 1080, height: 1080,
     render(ctx, canvas, { text }) {
       renderBlockLeftBoxes(ctx, canvas, text, {
-        maxSize: 32, minSize: 16, xMargin: 46, rightMargin: 46, padX: 22, padTop: 12, padBottom: 7,
-        yBottom: 935, yTopMax: 618, boxColor: rgb(30,72,255), textColor: rgb(255,255,255),
+        maxSize: 32, minSize: 16, xMargin: 49, rightMargin: 49, padX: 22, padTop: 12, padBottom: 7,
+        yBottom: 992, yTopMax: 656, boxColor: rgb(42,71,246), textColor: rgb(255,255,255),
       });
     },
   },
   {
     id: "morten_6_1080x1080", label: "Morten 6 – 1080×1080",
-    baseImage: path.join(BASES, "morten_base_6_1080x1080.jpg"),
+    baseImage: path.join(BASES, "morten_base_6_1080x1080ny.jpg"),
     outSuffix: "morten", width: 1080, height: 1080,
     render(ctx, canvas, { text }) {
       renderBlockLeftBoxes(ctx, canvas, text, {
-        maxSize: 36, minSize: 16, xMargin: 46, rightMargin: 100, padX: 17, padTop: 15, padBottom: 8,
-        yBottom: 916, yTopMax: 618, boxColor: rgb(0,0,0), textColor: rgb(255,255,255),
+        maxSize: 36, minSize: 16, xMargin: 49, rightMargin: 106, padX: 17, padTop: 15, padBottom: 16,
+        yBottom: 972, yTopMax: 656, boxColor: rgb(0,0,0), textColor: rgb(255,255,255),
       });
     },
   },
@@ -679,25 +716,27 @@ export const mortenTemplates: MortenTemplate[] = [
     baseImage: path.join(BASES, "morten_base_7_1080x1080.jpg"),
     outSuffix: "morten", width: 1080, height: 1080,
     render(ctx, canvas, { text }) {
-      const X_MARGIN = 46, LINE_GAP = 12, STROKE = 7;
-      const Y_BOTTOM = 950, Y_TOP_MAX = 618;
+      const X_MARGIN = 49, LINE_GAP = 12, STROKE = 7;
+      const Y_BOTTOM = 1008, Y_TOP_MAX = 655;
       const { width } = canvas;
       const xCenter = width / 2;
-      let lines: string[] = [], heights: number[] = [], size = 20;
+      let lines: string[] = [], heights: number[] = [], ascents: number[] = [], size = 20;
       for (size = 40; size >= 18; size -= 2) {
         const font = fontStr(FONT.bold700, size);
-        lines = wrapText(ctx, text, font, width - 2 * X_MARGIN);
-        heights = lines.map((l) => lineHeight(ctx, l, font));
+        lines = wrapText(ctx, text, font, width - 2 * X_MARGIN - 2 * STROKE);
+        heights = []; ascents = [];
+        for (const l of lines) { const m = inkMeasure(ctx, l, font); heights.push(m.height + 2 * STROKE); ascents.push(m.ascent + STROKE); }
         const totalH = heights.reduce((a, h) => a + h, 0) + LINE_GAP * (heights.length - 1);
         if (totalH <= Y_BOTTOM - Y_TOP_MAX) break;
       }
       const font = fontStr(FONT.bold700, size);
       const totalH = heights.reduce((a, h) => a + h, 0) + LINE_GAP * (heights.length - 1);
       let y = Y_BOTTOM - totalH;
-      ctx.textAlign = "center"; ctx.textBaseline = "top"; ctx.font = font; ctx.lineJoin = "round";
+      ctx.textAlign = "center"; ctx.textBaseline = "alphabetic"; ctx.font = font; ctx.lineJoin = "round";
       for (let i = 0; i < lines.length; i++) {
-        ctx.lineWidth = STROKE * 2; ctx.strokeStyle = rgb(0,0,0); ctx.strokeText(lines[i], xCenter, y);
-        ctx.fillStyle = rgb(255,255,255); ctx.fillText(lines[i], xCenter, y);
+        const ty = y + ascents[i];
+        ctx.lineWidth = STROKE * 2; ctx.strokeStyle = rgb(0,0,0); ctx.strokeText(lines[i], xCenter, ty);
+        ctx.fillStyle = rgb(255,255,255); ctx.fillText(lines[i], xCenter, ty);
         y += heights[i] + LINE_GAP;
       }
     },
@@ -708,8 +747,8 @@ export const mortenTemplates: MortenTemplate[] = [
     outSuffix: "morten", width: 1080, height: 1080,
     render(ctx, canvas, { text }) {
       renderCenteredBoxes(ctx, canvas, text, {
-        maxSize: 36, minSize: 16, xMargin: 28, padX: 20, padTop: 16, padBottom: 10,
-        yBottom: 942, yTopMax: 700, boxColor: rgb(0,0,0), textColor: rgb(255,255,255), radius: 22,
+        maxSize: 36, minSize: 16, xMargin: 30, padX: 20, padTop: 16, padBottom: 10,
+        yBottom: 999, yTopMax: 743, boxColor: rgb(0,0,0), textColor: rgb(255,255,255), radius: 22,
       });
     },
   },
@@ -718,25 +757,26 @@ export const mortenTemplates: MortenTemplate[] = [
     baseImage: path.join(BASES, "morten_base_9_1080x1080.jpg"),
     outSuffix: "morten", width: 1080, height: 1080,
     render(ctx, canvas, { text }) {
-      const X_MARGIN = 40, RIGHT_MARGIN = 40, LINE_GAP = 18;
-      const YELLOW_TOP = 703, YELLOW_BOTTOM = 990;
+      const X_MARGIN = 42, RIGHT_MARGIN = 42, LINE_GAP = 18;
+      const YELLOW_TOP = 746, YELLOW_BOTTOM = 1050;
       const { width } = canvas;
       const maxW = width - X_MARGIN - RIGHT_MARGIN;
-      let lines: string[] = [], heights: number[] = [], size = 18;
+      let lines: string[] = [], heights: number[] = [], ascents: number[] = [], size = 18;
       for (size = 42; size >= 18; size -= 2) {
         const font = fontStr(FONT.bold700, size);
         lines = wrapText(ctx, text, font, maxW);
-        heights = lines.map((l) => lineHeight(ctx, l, font));
+        heights = []; ascents = [];
+        for (const l of lines) { const m = inkMeasure(ctx, l, font); heights.push(m.height); ascents.push(m.ascent); }
         const totalH = heights.reduce((a, h) => a + h, 0) + LINE_GAP * (heights.length - 1);
         if (totalH <= YELLOW_BOTTOM - YELLOW_TOP) break;
       }
       const totalH = heights.reduce((a, h) => a + h, 0) + LINE_GAP * (heights.length - 1);
       const leftover = YELLOW_BOTTOM - YELLOW_TOP - totalH;
       let y = YELLOW_TOP + leftover * 0.5;
-      ctx.textAlign = "left"; ctx.textBaseline = "top";
+      ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
       ctx.font = fontStr(FONT.bold700, size); ctx.fillStyle = rgb(0,0,0);
       for (let i = 0; i < lines.length; i++) {
-        ctx.fillText(lines[i], X_MARGIN, y); y += heights[i] + LINE_GAP;
+        ctx.fillText(lines[i], X_MARGIN, y + ascents[i]); y += heights[i] + LINE_GAP;
       }
     },
   },
@@ -746,8 +786,8 @@ export const mortenTemplates: MortenTemplate[] = [
     outSuffix: "morten", width: 1080, height: 1080,
     render(ctx, canvas, { text }) {
       renderCenteredBoxes(ctx, canvas, text, {
-        maxSize: 44, minSize: 16, xMargin: 22, padX: 16, padTop: 13, padBottom: 8,
-        yBottom: 916, yTopMax: 618, boxColor: rgb(0,0,0), textColor: rgb(255,255,255), radius: 18,
+        maxSize: 44, minSize: 16, xMargin: 23, padX: 16, padTop: 13, padBottom: 8,
+        yBottom: 972, yTopMax: 656, boxColor: rgb(0,0,0), textColor: rgb(255,255,255), radius: 18,
       });
     },
   },
