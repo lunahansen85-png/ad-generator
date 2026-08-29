@@ -103,7 +103,7 @@ export default function Home() {
           ? { category, text }
           : category === "retinol"
             ? { category, headline: rHeadline, subheadline: rSubheadline, body: rBody }
-            : { category, headline, quote, name, source };
+            : { category, headline, quote, name, source, formatsOnly: true };
 
       const res = await fetch("/api/generate", {
         method: "POST",
@@ -260,7 +260,7 @@ export default function Home() {
     const collected: BulkImage[] = [];
     try {
       for (let i = 0; i < bulkRows.length; i++) {
-        const payload = { category, ...bulkRows[i] };
+        const payload = { category, ...bulkRows[i], formatsOnly: true };
         const res = await fetch("/api/generate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },

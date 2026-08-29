@@ -8,6 +8,7 @@ import {
   drawStar,
   fontStr,
   lineHeight,
+  multilineHeight,
   rgb,
   textWidth,
   wrapText,
@@ -27,6 +28,9 @@ export type TestimonialTemplate = {
   needsHeadline: boolean;
   requiresTrustpilot?: boolean;
   outSuffix: string;
+  width?: number;
+  height?: number;
+  resizeCrop?: boolean;
   render: (ctx: SKRSContext2D, canvas: Canvas, input: TestimonialInput) => void;
 };
 
@@ -699,3 +703,580 @@ export const RESIZE_OVERRIDES: Record<string, [number, number]> = {
   template1: [1636, 1630],
   template3: [1408, 1608],
 };
+
+// ─── Colors (match Python constants exactly) ────────────────────────────────
+const TEAL_DARK  = rgb(38, 76, 85);
+const TEAL_LIGHT = rgb(117, 155, 179);
+const TEAL_NAME  = rgb(51, 114, 139);
+const DARK       = rgb(10, 27, 42);
+const WHITE_COL  = rgb(255, 255, 255);
+const BLACK_COL  = rgb(0, 0, 0);
+const GOLD       = rgb(230, 172, 40);
+
+/** Shared spacing fn matching Python: max(4, size//4) */
+const sp4 = (size: number) => Math.max(4, Math.floor(size / 4));
+
+/** Left-aligned pattern: quote above, name pinned to TEXT_BOT. */
+function renderLeftPinned(
+  ctx: SKRSContext2D,
+  { quote, name }: TestimonialInput,
+  opts: {
+    CL: number; CR: number; TEXT_TOP: number; TEXT_BOT: number;
+    SZ_START: number; SZ_END: number; NAME_SZ: number;
+    quoteColor: string; nameColor: string;
+    nameGap?: number; // if set, name floats below quote; if not, name pinned to TEXT_BOT
+  }
+) {
+  const MAX_W = opts.CR - opts.CL;
+  const nameFont = fontStr(FONT.regular, opts.NAME_SZ);
+  const nameH = lineHeight(ctx, name, nameFont);
+  const gap = opts.nameGap ?? 24;
+  const availH = (opts.TEXT_BOT - opts.TEXT_TOP) - gap - nameH;
+
+  const fit = autoFitSize(ctx, quote, FONT.regular, opts.SZ_START, opts.SZ_END, 1, MAX_W, availH, sp4);
+  drawMultilineText(ctx, fit.lines, opts.CL, opts.TEXT_TOP, fontStr(FONT.regular, fit.size), {
+    fill: opts.quoteColor, spacing: fit.spacing,
+  });
+
+  const yName = opts.nameGap != null
+    ? opts.TEXT_TOP + fit.blockHeight + gap
+    : opts.TEXT_BOT - nameH;
+  drawSingleText(ctx, name, opts.CL, yName, nameFont, { fill: opts.nameColor });
+}
+
+/** Centered pattern (anchor="ma" equivalent): x is center, name centered. */
+function renderCenterPinned(
+  ctx: SKRSContext2D,
+  { quote, name }: TestimonialInput,
+  opts: {
+    TC: number; MAX_W: number; TEXT_TOP: number; TEXT_BOT: number;
+    SZ_START: number; SZ_END: number; NAME_SZ: number;
+    quoteColor: string; nameColor: string;
+    nameGap?: number; // if set, name floats below quote; if not, name pinned to TEXT_BOT
+  }
+) {
+  const nameFont = fontStr(FONT.regular, opts.NAME_SZ);
+  const nameH = lineHeight(ctx, name, nameFont);
+  const gap = opts.nameGap ?? 24;
+  const availH = (opts.TEXT_BOT - opts.TEXT_TOP) - gap - nameH;
+
+  const fit = autoFitSize(ctx, quote, FONT.regular, opts.SZ_START, opts.SZ_END, 1, opts.MAX_W, availH, sp4);
+  drawMultilineText(ctx, fit.lines, opts.TC, opts.TEXT_TOP, fontStr(FONT.regular, fit.size), {
+    fill: opts.quoteColor, spacing: fit.spacing, align: "center",
+  });
+
+  const yName = opts.nameGap != null
+    ? opts.TEXT_TOP + fit.blockHeight + gap
+    : opts.TEXT_BOT - nameH;
+  drawSingleText(ctx, name, opts.TC, yName, nameFont, { fill: opts.nameColor, align: "center" });
+}
+
+// ─── Format-specific templates ──────────────────────────────────────────────
+export const testimonialFormatTemplates: TestimonialTemplate[] = [
+
+  // ── Template 1 ──────────────────────────────────────────────────────────
+  {
+    id: "template1_9x16", label: "Template 1 – 9×16",
+    baseImage: path.join(BASES, "template_base_1_9x16.jpg"),
+    needsHeadline: false, outSuffix: "template1_9x16",
+    width: 1080, height: 1920, resizeCrop: true,
+    render(ctx, canvas, { quote, name }) {
+      const X = 63, Y = 100, MAX_W = 600, Y_MAX = 720, NAME_GAP = 55, MAX_NAME_W = 500;
+      const SZ_START = 68, SZ_END = 28;
+      let size = SZ_START, nameFont: string, nameH = 0, qFont: string, lines: string[], sp = 6, bh = 0;
+      for (size = SZ_START; size >= SZ_END; size -= 2) {
+        sp = Math.max(6, Math.floor(size / 5));
+        const nameSz = Math.max(size - 8, 18);
+        nameFont = fontStr(FONT.regular, nameSz);
+        nameH = lineHeight(ctx, name, nameFont);
+        qFont = fontStr(FONT.bold, size);
+        lines = wrapText(ctx, quote, qFont, MAX_W);
+        bh = multilineHeight(ctx, lines, qFont, sp);
+        if (bh + NAME_GAP + nameH <= Y_MAX - Y) break;
+      }
+      const nameSzFinal = Math.max(size - 8, 18);
+      let curNameSz = nameSzFinal;
+      nameFont = fontStr(FONT.regular, curNameSz);
+      while (textWidth(ctx, name, nameFont) > MAX_NAME_W && curNameSz > 14) {
+        curNameSz -= 2;
+        nameFont = fontStr(FONT.regular, curNameSz);
+      }
+      nameH = lineHeight(ctx, name, nameFont);
+      const sw = size >= 50 ? 2 : size >= 36 ? 1 : 0;
+      drawMultilineText(ctx, lines!, X, Y, fontStr(FONT.bold, size), {
+        fill: DARK, spacing: sp, strokeWidth: sw, strokeColor: DARK,
+      });
+      drawSingleText(ctx, name, X, Y + bh + NAME_GAP, nameFont!, { fill: DARK });
+    },
+  },
+  {
+    id: "template1_1080x1080", label: "Template 1 – 1080×1080",
+    baseImage: path.join(BASES, "template_base_1_1080x1080.jpg"),
+    needsHeadline: false, outSuffix: "template1_1080x1080",
+    width: 1080, height: 1080, resizeCrop: true,
+    render(ctx, canvas, { quote, name }) {
+      const X = 63, Y = 56, MAX_W = 640, Y_MAX = 400, NAME_GAP = 24, MAX_NAME_W = 550;
+      const SZ_START = 68, SZ_END = 18;
+      let size = SZ_START, nameFont: string, nameH = 0, qFont: string, lines: string[], sp = 6, bh = 0;
+      for (size = SZ_START; size >= SZ_END; size -= 2) {
+        sp = Math.max(6, Math.floor(size / 5));
+        const nameSz = Math.max(size - 8, 18);
+        nameFont = fontStr(FONT.regular, nameSz);
+        nameH = lineHeight(ctx, name, nameFont);
+        qFont = fontStr(FONT.bold, size);
+        lines = wrapText(ctx, quote, qFont, MAX_W);
+        bh = multilineHeight(ctx, lines, qFont, sp);
+        if (bh + NAME_GAP + nameH <= Y_MAX - Y) break;
+      }
+      const nameSzFinal = Math.max(size - 8, 18);
+      let curNameSz = nameSzFinal;
+      nameFont = fontStr(FONT.regular, curNameSz);
+      while (textWidth(ctx, name, nameFont) > MAX_NAME_W && curNameSz > 14) {
+        curNameSz -= 2;
+        nameFont = fontStr(FONT.regular, curNameSz);
+      }
+      nameH = lineHeight(ctx, name, nameFont);
+      const sw = size >= 50 ? 2 : size >= 36 ? 1 : 0;
+      drawMultilineText(ctx, lines!, X, Y, fontStr(FONT.bold, size), {
+        fill: DARK, spacing: sp, strokeWidth: sw, strokeColor: DARK,
+      });
+      drawSingleText(ctx, name, X, Y + bh + NAME_GAP, nameFont!, { fill: DARK });
+    },
+  },
+
+  // ── Template 2 ──────────────────────────────────────────────────────────
+  {
+    id: "template2_9x16", label: "Template 2 – 9×16",
+    baseImage: path.join(BASES, "template_base_2_9x16.jpg"),
+    needsHeadline: true, outSuffix: "template2_9x16",
+    width: 1080, height: 1920, resizeCrop: true,
+    render(ctx, canvas, { headline, quote, name }) {
+      const HL_X = 65, HL_Y = 375, HL_MAX_W = 560, HL_MAX_Y = 700;
+      const hlFit = autoFitSize(ctx, headline, FONT.bold, 60, 20, 2, HL_MAX_W, HL_MAX_Y - HL_Y, () => 8, 3);
+      drawMultilineText(ctx, hlFit.lines, HL_X, HL_Y, fontStr(FONT.bold, hlFit.size), {
+        fill: WHITE_COL, spacing: hlFit.spacing, strokeWidth: 2, strokeColor: WHITE_COL,
+      });
+      renderLeftPinned(ctx, { quote, name, headline, source: "trustpilot" }, {
+        CL: 119, CR: 464, TEXT_TOP: 960, TEXT_BOT: 1394,
+        SZ_START: 42, SZ_END: 18, NAME_SZ: 28,
+        quoteColor: TEAL_DARK, nameColor: TEAL_LIGHT,
+      });
+    },
+  },
+  {
+    id: "template2_1080x1080", label: "Template 2 – 1080×1080",
+    baseImage: path.join(BASES, "template_base_2_1080x1080.jpg"),
+    needsHeadline: true, outSuffix: "template2_1080x1080",
+    width: 1080, height: 1080, resizeCrop: true,
+    render(ctx, canvas, { headline, quote, name }) {
+      const HL_X = 75, HL_Y = 60, HL_MAX_W = 560, HL_MAX_Y = 292;
+      const hlFit = autoFitSize(ctx, headline, FONT.bold, 50, 20, 2, HL_MAX_W, HL_MAX_Y - HL_Y, () => 8);
+      drawMultilineText(ctx, hlFit.lines, HL_X, HL_Y, fontStr(FONT.bold, hlFit.size), {
+        fill: WHITE_COL, spacing: hlFit.spacing, strokeWidth: 2, strokeColor: WHITE_COL,
+      });
+      renderLeftPinned(ctx, { quote, name, headline, source: "trustpilot" }, {
+        CL: 129, CR: 452, TEXT_TOP: 530, TEXT_BOT: 930,
+        SZ_START: 36, SZ_END: 14, NAME_SZ: 24,
+        quoteColor: TEAL_DARK, nameColor: TEAL_LIGHT,
+      });
+    },
+  },
+
+  // ── Template 3 ──────────────────────────────────────────────────────────
+  {
+    id: "template3_9x16", label: "Template 3 – 9×16",
+    baseImage: path.join(BASES, "template_base_3_9x16.jpg"),
+    needsHeadline: false, outSuffix: "template3_9x16",
+    width: 1080, height: 1920, resizeCrop: true,
+    render(ctx, canvas, input) {
+      renderLeftPinned(ctx, input, {
+        CL: 432, CR: 969, TEXT_TOP: 1114, TEXT_BOT: 1548,
+        SZ_START: 44, SZ_END: 18, NAME_SZ: 30,
+        quoteColor: TEAL_DARK, nameColor: TEAL_LIGHT,
+      });
+    },
+  },
+  {
+    id: "template3_1080x1080", label: "Template 3 – 1080×1080",
+    baseImage: path.join(BASES, "template_base_3_1080x1080.jpg"),
+    needsHeadline: false, outSuffix: "template3_1080x1080",
+    width: 1080, height: 1080, resizeCrop: true,
+    render(ctx, canvas, input) {
+      renderLeftPinned(ctx, input, {
+        CL: 540, CR: 972, TEXT_TOP: 710, TEXT_BOT: 930,
+        SZ_START: 38, SZ_END: 14, NAME_SZ: 26,
+        quoteColor: TEAL_DARK, nameColor: TEAL_LIGHT,
+      });
+    },
+  },
+
+  // ── Template 4 ──────────────────────────────────────────────────────────
+  {
+    id: "template4_9x16", label: "Template 4 – 9×16",
+    baseImage: path.join(BASES, "template_base_4_9x16.jpg"),
+    needsHeadline: false, outSuffix: "template4_9x16",
+    width: 1080, height: 1920, resizeCrop: true,
+    render(ctx, canvas, { quote, name }) {
+      const X = 108, Y = 321, MAX_W = 410, Y_MAX = 977;
+      const STAR_R = 17, STAR_GAP = 42, NAME_GAP = 27;
+      const starH = STAR_R * 2, starOffsetY = 38;
+      let size = 48, nameFont = "", nameH = 0, lines: string[] = [], sp = 5, bh = 0;
+      for (size = 48; size >= 22; size -= 2) {
+        const nameSz = Math.max(size - 5, 18);
+        nameFont = fontStr(FONT.regular, nameSz);
+        nameH = lineHeight(ctx, name, nameFont);
+        sp = Math.max(5, Math.floor(size / 4));
+        lines = wrapText(ctx, quote, fontStr(FONT.regular, size), MAX_W);
+        bh = multilineHeight(ctx, lines, fontStr(FONT.regular, size), sp);
+        const avh = Y_MAX - Y - starH - starOffsetY - nameH - NAME_GAP;
+        if (bh <= avh) break;
+      }
+      drawMultilineText(ctx, lines, X, Y, fontStr(FONT.regular, size), {
+        fill: WHITE_COL, spacing: sp,
+      });
+      const yStars = Y + bh + starOffsetY;
+      for (let i = 0; i < 5; i++) {
+        drawStar(ctx, X + STAR_R + i * STAR_GAP, yStars + STAR_R, STAR_R, Math.floor(STAR_R / 2), GOLD);
+      }
+      drawSingleText(ctx, name, X, yStars + starH + NAME_GAP, nameFont, { fill: WHITE_COL });
+    },
+  },
+  {
+    id: "template4_1080x1080", label: "Template 4 – 1080×1080",
+    baseImage: path.join(BASES, "template_base_4_1080x1080.jpg"),
+    needsHeadline: false, outSuffix: "template4_1080x1080",
+    width: 1080, height: 1080, resizeCrop: true,
+    render(ctx, canvas, { quote, name }) {
+      const X = 112, Y = 180, MAX_W = 410, Y_MAX = 550;
+      const STAR_R = 13, STAR_GAP = 33, NAME_GAP = 27;
+      const starH = STAR_R * 2, starOffsetY = 23;
+      let size = 48, nameFont = "", nameH = 0, lines: string[] = [], sp = 5, bh = 0;
+      for (size = 48; size >= 22; size -= 2) {
+        const nameSz = Math.max(size - 5, 18);
+        nameFont = fontStr(FONT.regular, nameSz);
+        nameH = lineHeight(ctx, name, nameFont);
+        sp = Math.max(5, Math.floor(size / 4));
+        lines = wrapText(ctx, quote, fontStr(FONT.regular, size), MAX_W);
+        bh = multilineHeight(ctx, lines, fontStr(FONT.regular, size), sp);
+        const avh = Y_MAX - Y - starH - starOffsetY - nameH - NAME_GAP;
+        if (bh <= avh) break;
+      }
+      drawMultilineText(ctx, lines, X, Y, fontStr(FONT.regular, size), {
+        fill: WHITE_COL, spacing: sp,
+      });
+      const yStars = Y + bh + starOffsetY;
+      for (let i = 0; i < 5; i++) {
+        drawStar(ctx, X + STAR_R + i * STAR_GAP, yStars + STAR_R, STAR_R, Math.floor(STAR_R / 2), GOLD);
+      }
+      drawSingleText(ctx, name, X, yStars + starH + NAME_GAP, nameFont, { fill: WHITE_COL });
+    },
+  },
+
+  // ── Template 5 ──────────────────────────────────────────────────────────
+  {
+    id: "template5_9x16", label: "Template 5 – 9×16",
+    baseImage: path.join(BASES, "template_base_5_9x16.jpg"),
+    needsHeadline: true, outSuffix: "template5_9x16",
+    width: 1080, height: 1920, resizeCrop: true,
+    render(ctx, canvas, { headline, quote, name }) {
+      const X = 81, MAX_W = 440, Y_HL = 144, HL_SZ = 55, NAME_SZ = 29;
+      const STAR_R = 15, STAR_GAP = 33, starH = STAR_R * 2;
+      const H = 1920, Y_BOT = 1536;
+      const hlFont = fontStr(FONT.bold, HL_SZ);
+      const hlLines = wrapText(ctx, headline, hlFont, MAX_W);
+      const hlBh = multilineHeight(ctx, hlLines, hlFont, 14);
+      drawMultilineText(ctx, hlLines, X, Y_HL, hlFont, {
+        fill: WHITE_COL, spacing: 14,
+      });
+      const yQuote = Y_HL + hlBh + 156;
+      const nameFont = fontStr(FONT.regular, NAME_SZ);
+      const nameH = lineHeight(ctx, name, nameFont);
+      const avh = Y_BOT - yQuote - starH - 120 - nameH;
+      let size = 38, lines: string[] = [], sp = 7, bh = 0;
+      for (size = 38; size >= 17; size -= 2) {
+        sp = Math.max(7, Math.floor(size / 3));
+        lines = wrapText(ctx, quote, fontStr(FONT.regular, size), MAX_W);
+        bh = multilineHeight(ctx, lines, fontStr(FONT.regular, size), sp);
+        if (bh <= avh) break;
+      }
+      drawMultilineText(ctx, lines, X, yQuote, fontStr(FONT.regular, size), {
+        fill: WHITE_COL, spacing: sp,
+      });
+      const yName = yQuote + bh + 120;
+      drawSingleText(ctx, name, X, yName, nameFont, { fill: WHITE_COL });
+      const nameW = textWidth(ctx, name, nameFont);
+      const xStars = X + nameW + 11;
+      for (let i = 0; i < 5; i++) {
+        drawStar(ctx, xStars + STAR_R + i * STAR_GAP, yName + nameH / 2, STAR_R, Math.floor(STAR_R / 2), GOLD);
+      }
+    },
+  },
+  {
+    id: "template5_1080x1080", label: "Template 5 – 1080×1080",
+    baseImage: path.join(BASES, "template_base_5_1080x1080.jpg"),
+    needsHeadline: true, outSuffix: "template5_1080x1080",
+    width: 1080, height: 1080, resizeCrop: true,
+    render(ctx, canvas, { headline, quote, name }) {
+      const X = 47, MAX_W = 480, Y_HL = 81, HL_SZ = 55, NAME_SZ = 29;
+      const STAR_R = 15, STAR_GAP = 33, starH = STAR_R * 2;
+      const H = 1080, Y_BOT = H - 101;
+      const hlFont = fontStr(FONT.bold, HL_SZ);
+      const hlLines = wrapText(ctx, headline, hlFont, MAX_W);
+      const hlBh = multilineHeight(ctx, hlLines, hlFont, 8);
+      drawMultilineText(ctx, hlLines, X, Y_HL, hlFont, {
+        fill: WHITE_COL, spacing: 8,
+      });
+      const yQuote = Y_HL + hlBh + 88;
+      const nameFont = fontStr(FONT.regular, NAME_SZ);
+      const nameH = lineHeight(ctx, name, nameFont);
+      const avh = Y_BOT - yQuote - starH - 68 - nameH;
+      let size = 38, lines: string[] = [], sp = 7, bh = 0;
+      for (size = 38; size >= 17; size -= 2) {
+        sp = Math.max(7, Math.floor(size / 3));
+        lines = wrapText(ctx, quote, fontStr(FONT.regular, size), MAX_W);
+        bh = multilineHeight(ctx, lines, fontStr(FONT.regular, size), sp);
+        if (bh <= avh) break;
+      }
+      drawMultilineText(ctx, lines, X, yQuote, fontStr(FONT.regular, size), {
+        fill: WHITE_COL, spacing: sp,
+      });
+      const yName = yQuote + bh + 68;
+      drawSingleText(ctx, name, X, yName, nameFont, { fill: WHITE_COL });
+      const nameW = textWidth(ctx, name, nameFont);
+      const xStars = X + nameW + 11;
+      for (let i = 0; i < 5; i++) {
+        drawStar(ctx, xStars + STAR_R + i * STAR_GAP, yName + nameH / 2, STAR_R, Math.floor(STAR_R / 2), GOLD);
+      }
+    },
+  },
+
+  // ── Template 6 ──────────────────────────────────────────────────────────
+  {
+    id: "template6_9x16", label: "Template 6 – 9×16",
+    baseImage: path.join(BASES, "template_base_6_9x16.jpg"),
+    needsHeadline: false, outSuffix: "template6_9x16",
+    width: 1080, height: 1920, resizeCrop: true,
+    render(ctx, canvas, input) {
+      renderLeftPinned(ctx, input, {
+        CL: 118, CR: 456, TEXT_TOP: 432, TEXT_BOT: 1065,
+        SZ_START: 42, SZ_END: 16, NAME_SZ: 28,
+        quoteColor: TEAL_DARK, nameColor: TEAL_NAME,
+      });
+    },
+  },
+  {
+    id: "template6_1080x1080", label: "Template 6 – 1080×1080",
+    baseImage: path.join(BASES, "template_base_6_1080x1080.jpg"),
+    needsHeadline: false, outSuffix: "template6_1080x1080",
+    width: 1080, height: 1080, resizeCrop: true,
+    render(ctx, canvas, input) {
+      renderLeftPinned(ctx, input, {
+        CL: 181, CR: 456, TEXT_TOP: 298, TEXT_BOT: 667,
+        SZ_START: 36, SZ_END: 14, NAME_SZ: 24,
+        quoteColor: TEAL_DARK, nameColor: TEAL_NAME,
+      });
+    },
+  },
+
+  // ── Template 7 ──────────────────────────────────────────────────────────
+  {
+    id: "template7_9x16", label: "Template 7 – 9×16",
+    baseImage: path.join(BASES, "template_base_7_9x16.jpg"),
+    needsHeadline: false, outSuffix: "template7_9x16",
+    width: 1080, height: 1920, resizeCrop: true,
+    render(ctx, canvas, input) {
+      renderCenterPinned(ctx, input, {
+        TC: 763, MAX_W: 360, TEXT_TOP: 445, TEXT_BOT: 1050,
+        SZ_START: 44, SZ_END: 20, NAME_SZ: 30,
+        quoteColor: DARK, nameColor: DARK,
+      });
+    },
+  },
+  {
+    id: "template7_1080x1080", label: "Template 7 – 1080×1080",
+    baseImage: path.join(BASES, "template_base_7_1080x1080.jpg"),
+    needsHeadline: false, outSuffix: "template7_1080x1080",
+    width: 1080, height: 1080, resizeCrop: true,
+    render(ctx, canvas, input) {
+      renderCenterPinned(ctx, input, {
+        TC: 809, MAX_W: 310, TEXT_TOP: 338, TEXT_BOT: 680,
+        SZ_START: 38, SZ_END: 18, NAME_SZ: 26,
+        quoteColor: DARK, nameColor: DARK,
+      });
+    },
+  },
+
+  // ── Template 8 ──────────────────────────────────────────────────────────
+  {
+    id: "template8_9x16", label: "Template 8 – 9×16",
+    baseImage: path.join(BASES, "template_base_8_9x16.jpg"),
+    needsHeadline: false, outSuffix: "template8_9x16",
+    width: 1080, height: 1920, resizeCrop: true,
+    render(ctx, canvas, { quote, name }) {
+      const TC = 708, MAX_W = 460, TEXT_TOP = 290, TEXT_BOT = 900, NAME_GAP = 45;
+      const zone_h = TEXT_BOT - TEXT_TOP;
+      let size = 50, nameFont = "", nameH = 0, lines: string[] = [], sp = 4, bh = 0;
+      for (size = 50; size >= 22; size -= 1) {
+        const nameSz = Math.max(14, size - 8);
+        nameFont = fontStr(FONT.regular, nameSz);
+        nameH = lineHeight(ctx, name, nameFont);
+        sp = Math.max(4, Math.floor(size / 4));
+        lines = wrapText(ctx, quote, fontStr(FONT.regular, size), MAX_W);
+        bh = multilineHeight(ctx, lines, fontStr(FONT.regular, size), sp);
+        if (bh + NAME_GAP + nameH <= zone_h) break;
+      }
+      drawMultilineText(ctx, lines, TC, TEXT_TOP, fontStr(FONT.regular, size), {
+        fill: WHITE_COL, spacing: sp, align: "center",
+      });
+      drawSingleText(ctx, name, TC, TEXT_TOP + bh + NAME_GAP, nameFont, {
+        fill: WHITE_COL, align: "center",
+      });
+    },
+  },
+  {
+    id: "template8_1080x1080", label: "Template 8 – 1080×1080",
+    baseImage: path.join(BASES, "template_base_8_1080x1080.jpg"),
+    needsHeadline: false, outSuffix: "template8_1080x1080",
+    width: 1080, height: 1080, resizeCrop: true,
+    render(ctx, canvas, { quote, name }) {
+      const TC = 778, MAX_W = 390, TEXT_TOP = 150, TEXT_BOT = 530, NAME_GAP = 35;
+      const zone_h = TEXT_BOT - TEXT_TOP;
+      let size = 42, nameFont = "", nameH = 0, lines: string[] = [], sp = 4, bh = 0;
+      for (size = 42; size >= 20; size -= 1) {
+        const nameSz = Math.max(14, size - 8);
+        nameFont = fontStr(FONT.regular, nameSz);
+        nameH = lineHeight(ctx, name, nameFont);
+        sp = Math.max(4, Math.floor(size / 4));
+        lines = wrapText(ctx, quote, fontStr(FONT.regular, size), MAX_W);
+        bh = multilineHeight(ctx, lines, fontStr(FONT.regular, size), sp);
+        if (bh + NAME_GAP + nameH <= zone_h) break;
+      }
+      drawMultilineText(ctx, lines, TC, TEXT_TOP, fontStr(FONT.regular, size), {
+        fill: WHITE_COL, spacing: sp, align: "center",
+      });
+      drawSingleText(ctx, name, TC, TEXT_TOP + bh + NAME_GAP, nameFont, {
+        fill: WHITE_COL, align: "center",
+      });
+    },
+  },
+
+  // ── Template 9 ──────────────────────────────────────────────────────────
+  {
+    id: "template9_9x16", label: "Template 9 – 9×16",
+    baseImage: path.join(BASES, "template_base_9_9x16.jpg"),
+    needsHeadline: false, outSuffix: "template9_9x16",
+    width: 1080, height: 1920, resizeCrop: true,
+    render(ctx, canvas, input) {
+      renderLeftPinned(ctx, input, {
+        CL: 99, CR: 516, TEXT_TOP: 240, TEXT_BOT: 913,
+        SZ_START: 44, SZ_END: 18, NAME_SZ: 28,
+        quoteColor: TEAL_DARK, nameColor: TEAL_NAME,
+      });
+    },
+  },
+  {
+    id: "template9_1080x1080", label: "Template 9 – 1080×1080",
+    baseImage: path.join(BASES, "template_base_9_1080x1080.jpg"),
+    needsHeadline: false, outSuffix: "template9_1080x1080",
+    width: 1080, height: 1080, resizeCrop: true,
+    render(ctx, canvas, input) {
+      renderLeftPinned(ctx, input, {
+        CL: 122, CR: 470, TEXT_TOP: 192, TEXT_BOT: 634,
+        SZ_START: 36, SZ_END: 14, NAME_SZ: 24,
+        quoteColor: TEAL_DARK, nameColor: TEAL_NAME,
+      });
+    },
+  },
+
+  // ── Template 10 ─────────────────────────────────────────────────────────
+  {
+    id: "template10_9x16", label: "Template 10 – 9×16",
+    baseImage: path.join(BASES, "template_base_10_9x16.jpg"),
+    needsHeadline: true, outSuffix: "template10_9x16",
+    width: 1080, height: 1920, resizeCrop: true,
+    render(ctx, canvas, { headline, quote, name }) {
+      const X = 131, MAX_W_HL = 856, MAX_W_Q = 350, Y_HL = 79;
+      const HL_SZ = 78, NAME_SZ = 37, Y_BOT = 1480, NAME_GAP = 66, sp_h = 24;
+      const hlFont = fontStr(FONT.bold, HL_SZ);
+      const hlLines = wrapText(ctx, headline.replace(/\n/g, " "), hlFont, MAX_W_HL);
+      const hlBh = multilineHeight(ctx, hlLines, hlFont, sp_h);
+      drawMultilineText(ctx, hlLines, X, Y_HL, hlFont, {
+        fill: BLACK_COL, spacing: sp_h, strokeWidth: 1, strokeColor: BLACK_COL,
+      });
+      const yAfter = Y_HL + hlBh + 79;
+      const nameFont = fontStr(FONT.bold, NAME_SZ);
+      const nameH = lineHeight(ctx, name, nameFont);
+      const avh = Y_BOT - yAfter - NAME_GAP - nameH;
+      let size = 35, lines: string[] = [], sp = 6, bh = 0;
+      for (size = 35; size >= 19; size -= 2) {
+        sp = Math.max(6, Math.floor(size / 3));
+        lines = wrapText(ctx, quote, fontStr(FONT.bold, size), MAX_W_Q);
+        bh = multilineHeight(ctx, lines, fontStr(FONT.bold, size), sp);
+        if (bh <= avh) break;
+      }
+      drawMultilineText(ctx, lines, X, yAfter, fontStr(FONT.bold, size), {
+        fill: BLACK_COL, spacing: sp, strokeWidth: 1, strokeColor: BLACK_COL,
+      });
+      drawSingleText(ctx, name, X, yAfter + bh + NAME_GAP, nameFont, { fill: BLACK_COL });
+    },
+  },
+  {
+    id: "template10_1080x1080", label: "Template 10 – 1080×1080",
+    baseImage: path.join(BASES, "template_base_10_1080x1080.jpg"),
+    needsHeadline: true, outSuffix: "template10_1080x1080",
+    width: 1080, height: 1080, resizeCrop: true,
+    render(ctx, canvas, { headline, quote, name }) {
+      const X = 131, MAX_W_HL = 400, MAX_W_Q = 350, Y_HL = 44;
+      const HL_SZ = 52, NAME_SZ = 21, Y_BOT = 795, NAME_GAP = 50, sp_h = 10;
+      const hlFont = fontStr(FONT.bold, HL_SZ);
+      const hlLines = wrapText(ctx, headline.replace(/\n/g, " "), hlFont, MAX_W_HL);
+      const hlBh = multilineHeight(ctx, hlLines, hlFont, sp_h);
+      drawMultilineText(ctx, hlLines, X, Y_HL, hlFont, {
+        fill: BLACK_COL, spacing: sp_h, strokeWidth: 1, strokeColor: BLACK_COL,
+      });
+      const yAfter = Y_HL + hlBh + 44;
+      const nameFont = fontStr(FONT.bold, NAME_SZ);
+      const nameH = lineHeight(ctx, name, nameFont);
+      const avh = Y_BOT - yAfter - NAME_GAP - nameH;
+      let size = 35, lines: string[] = [], sp = 6, bh = 0;
+      for (size = 35; size >= 19; size -= 2) {
+        sp = Math.max(6, Math.floor(size / 3));
+        lines = wrapText(ctx, quote, fontStr(FONT.bold, size), MAX_W_Q);
+        bh = multilineHeight(ctx, lines, fontStr(FONT.bold, size), sp);
+        if (bh <= avh) break;
+      }
+      drawMultilineText(ctx, lines, X, yAfter, fontStr(FONT.bold, size), {
+        fill: BLACK_COL, spacing: sp, strokeWidth: 1, strokeColor: BLACK_COL,
+      });
+      drawSingleText(ctx, name, X, yAfter + bh + NAME_GAP, nameFont, { fill: BLACK_COL });
+    },
+  },
+
+  // ── Template TP Stars ────────────────────────────────────────────────────
+  {
+    id: "template_tp_stars_9x16", label: "TP Stars – 9×16",
+    baseImage: path.join(BASES, "template_base_tp_stars_9x16.jpg"),
+    needsHeadline: false, requiresTrustpilot: true, outSuffix: "template_tp_stars_9x16",
+    width: 1080, height: 1920, resizeCrop: true,
+    render(ctx, canvas, input) {
+      renderCenterPinned(ctx, input, {
+        TC: 780, MAX_W: 320, TEXT_TOP: 548, TEXT_BOT: 1150,
+        SZ_START: 46, SZ_END: 20, NAME_SZ: 30,
+        quoteColor: DARK, nameColor: DARK, nameGap: 25,
+      });
+    },
+  },
+  {
+    id: "template_tp_stars_1080x1080", label: "TP Stars – 1080×1080",
+    baseImage: path.join(BASES, "template_base_tp_stars_1080x1080.jpg"),
+    needsHeadline: false, requiresTrustpilot: true, outSuffix: "template_tp_stars_1080x1080",
+    width: 1080, height: 1080, resizeCrop: true,
+    render(ctx, canvas, input) {
+      renderCenterPinned(ctx, input, {
+        TC: 783, MAX_W: 460, TEXT_TOP: 376, TEXT_BOT: 820,
+        SZ_START: 38, SZ_END: 18, NAME_SZ: 26,
+        quoteColor: DARK, nameColor: DARK, nameGap: 25,
+      });
+    },
+  },
+];

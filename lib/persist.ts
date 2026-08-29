@@ -28,8 +28,8 @@ export async function generateAndStore(row: AdCopyRow) {
       headline: row.headline,
       quote: row.quote,
       name: row.name,
-      source: row.source === "trustpilot" ? "trustpilot" : "other",
-    });
+      source: (row.source?.toLowerCase() === "trustpilot" || row.source?.toLowerCase() === "tp") ? "trustpilot" : "other",
+    }, true);
   }
 
   const stored: { templateId: string; label: string; filename: string; key: string }[] = [];

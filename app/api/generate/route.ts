@@ -20,7 +20,8 @@ export async function POST(req: NextRequest) {
       const headline = String(body.headline ?? "").trim();
       const quote = String(body.quote ?? "").trim();
       const name = String(body.name ?? "").trim();
-      const source = body.source === "trustpilot" ? "trustpilot" : "other";
+      const srcRaw = String(body.source ?? "").trim().toLowerCase();
+      const source = (srcRaw === "trustpilot" || srcRaw === "tp") ? "trustpilot" : "other";
 
       if (!quote || !name) {
         return NextResponse.json(
@@ -28,7 +29,8 @@ export async function POST(req: NextRequest) {
           { status: 400 }
         );
       }
-      images = await generateTestimonials({ headline, quote, name, source });
+      const formatsOnly = body.formatsOnly === true;
+      images = await generateTestimonials({ headline, quote, name, source }, formatsOnly);
     } else if (category === "retinol") {
       const headline = String(body.headline ?? "").trim();
       const subheadline = String(body.subheadline ?? "").trim();

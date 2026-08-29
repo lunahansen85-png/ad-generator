@@ -2,6 +2,7 @@ import { createCanvas, loadImage } from "@napi-rs/canvas";
 import { ensureFontsRegistered } from "./canvas-helpers";
 import {
   testimonialTemplates,
+  testimonialFormatTemplates,
   RESIZE_OVERRIDES,
   TestimonialInput,
 } from "./templates/testimonial";
@@ -48,17 +49,22 @@ function slugify(text: string, fallback: string) {
 }
 
 export async function generateTestimonials(
-  input: TestimonialInput
+  input: TestimonialInput,
+  formatsOnly = false
 ): Promise<GeneratedImage[]> {
   ensureFontsRegistered();
   const slug = slugify(input.headline || input.quote, "testimonial");
   const results: GeneratedImage[] = [];
 
-  for (const tpl of testimonialTemplates) {
+  const allTpls = formatsOnly
+    ? testimonialFormatTemplates
+    : [...testimonialTemplates, ...testimonialFormatTemplates];
+  for (const tpl of allTpls) {
     if (tpl.requiresTrustpilot && input.source !== "trustpilot") continue;
 
-    const resize = RESIZE_OVERRIDES[tpl.id];
-    const { canvas, ctx } = await renderBase(tpl.baseImage, resize);
+    const { canvas, ctx } = tpl.resizeCrop && tpl.width && tpl.height
+      ? await renderBaseResizeCrop(tpl.baseImage, tpl.width, tpl.height)
+      : await renderBase(tpl.baseImage, RESIZE_OVERRIDES[tpl.id]);
     tpl.render(ctx, canvas, input);
 
     const buffer = canvas.toBuffer("image/jpeg", 100);

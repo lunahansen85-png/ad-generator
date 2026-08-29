@@ -169,7 +169,8 @@ export function autoFitSize(
   step: number,
   maxWidth: number,
   availableHeight: number,
-  spacingFn: (size: number) => number
+  spacingFn: (size: number) => number,
+  maxLines?: number
 ): { size: number; lines: string[]; spacing: number; blockHeight: number } {
   let result: { size: number; lines: string[]; spacing: number; blockHeight: number } | null =
     null;
@@ -179,7 +180,9 @@ export function autoFitSize(
     const lines = wrapText(ctx, text, font, maxWidth);
     const blockHeight = multilineHeight(ctx, lines, font, spacing);
     result = { size, lines, spacing, blockHeight };
-    if (blockHeight <= availableHeight) break;
+    const fitsHeight = blockHeight <= availableHeight;
+    const fitsLines = maxLines == null || lines.length <= maxLines;
+    if (fitsHeight && fitsLines) break;
   }
   return result!;
 }
