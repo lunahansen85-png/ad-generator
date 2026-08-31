@@ -64,6 +64,7 @@ export const generatedImage = pgTable(
     filename: text("filename").notNull(),
     key: text("key").notNull(),
     bytes: integer("bytes").notNull().default(0),
+    favorite: boolean("favorite").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

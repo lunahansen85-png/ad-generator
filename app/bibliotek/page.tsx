@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-type Img = { id: string; templateId: string; label: string; filename: string; key: string };
+type Img = { id: string; templateId: string; label: string; filename: string; key: string; favorite: boolean };
 type Row = {
   id: string;
   category: string;
@@ -46,6 +46,7 @@ export default function Bibliotek() {
   const [busy, setBusy] = useState<string | null>(null);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [favoritesOnly, setFavoritesOnly] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -87,6 +88,18 @@ export default function Bibliotek() {
     if (!confirm("Slet denne tekst og dens billeder?")) return;
     await fetch(`/api/copy/${id}`, { method: "DELETE" });
     load();
+  }
+
+  async function toggleFavorite(imgId: string) {
+    setRows((r) =>
+      r.map((row) => ({
+        ...row,
+        images: row.images.map((img) =>
+          img.id === imgId ? { ...img, favorite: !img.favorite } : img
+        ),
+      }))
+    );
+    await fetch(`/api/image/${imgId}/favorite`, { method: "POST" });
   }
 
   async function generateOne(id: string) {
@@ -150,6 +163,12 @@ export default function Bibliotek() {
           </button>
         ))}
         <span className="ml-auto flex gap-2">
+          <button
+            onClick={() => setFavoritesOnly((v) => !v)}
+            className={`rounded border px-3 py-1.5 text-sm ${favoritesOnly ? "bg-amber-100 border-amber-400 text-amber-800" : "opacity-70"}`}
+          >
+            ⭐ {favoritesOnly ? "Alle billeder" : "Kun favoritter"}
+          </button>
           <button onClick={addRow} className="rounded border px-3 py-1.5 text-sm">
             + Ny tekst
           </button>
@@ -236,22 +255,33 @@ export default function Bibliotek() {
 
               {row.images.length > 0 && (
                 <div className="mt-3 flex flex-wrap gap-2">
-                  {row.images.map((img) => (
-                    <a
-                      key={img.id}
-                      href={`/i/${img.key}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      title={img.filename}
-                    >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={`/i/${img.key}`}
-                        alt={img.filename}
-                        className="h-20 w-20 rounded border object-cover"
-                      />
-                    </a>
-                  ))}
+                  {row.images
+                    .filter((img) => !favoritesOnly || img.favorite)
+                    .map((img) => (
+                      <div key={img.id} className="relative">
+                        <a
+                          href={`/i/${img.key}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          title={img.filename}
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={`/i/${img.key}`}
+                            alt={img.filename}
+                            className="h-20 w-20 rounded border object-cover"
+                          />
+                        </a>
+                        <button
+                          onClick={() => toggleFavorite(img.id)}
+                          title={img.favorite ? "Fjern favorit" : "Markér som favorit"}
+                          className="absolute top-0.5 right-0.5 text-base leading-none"
+                          style={{ textShadow: "0 0 3px rgba(0,0,0,0.6)" }}
+                        >
+                          {img.favorite ? "⭐" : "☆"}
+                        </button>
+                      </div>
+                    ))}
                 </div>
               )}
             </li>
