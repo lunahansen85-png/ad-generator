@@ -13,6 +13,8 @@ type Row = {
   text: string;
   subheadline: string;
   body: string;
+  metaPrimaryText: string;
+  metaHeadline: string;
   note: string;
   archived: boolean;
   updatedAt: string;
@@ -24,6 +26,58 @@ const CATEGORIES = [
   { id: "testimonial", label: "Testimonials" },
   { id: "retinol", label: "Retinol" },
 ];
+
+// Metas anbefaling for overskriften. 40 er en ANBEFALING, ikke et klippepunkt: Thomas' egen live
+// annonce med 35 tegn vises fuldt ud (verificeret 03.09.2026). Samme tal og samme formulering som
+// Ad Studios taeller (web/app.js: META_OVERSKRIFT_MAX), saa de to vaerktoejer siger det samme.
+const META_OVERSKRIFT_ANBEFALING = 40;
+
+/**
+ * Meta-annoncetekst for én tekstraekke: den tekst der staar i SELVE annoncen paa Facebook/Instagram
+ * — ikke paa billedet. Faelles for alle raekkens layouts, og hentes af Ad Studio sammen med billederne.
+ * Gemmer paa onBlur som resten af siden; overskriften har en live taeller, saa den har egen state.
+ */
+function MetaTekst({ row, save }: { row: Row; save: (id: string, field: string, value: string) => void }) {
+  const [headline, setHeadline] = useState(row.metaHeadline ?? "");
+  const lang = headline.length > META_OVERSKRIFT_ANBEFALING;
+  return (
+    <div className="mt-3 rounded-lg border border-dashed p-3">
+      <p className="mb-2 text-sm font-medium">
+        Meta-annoncetekst
+        <span className="ml-2 font-normal opacity-60">
+          står i annoncen, ikke på billedet — bruges af alle denne teksts layouts
+        </span>
+      </p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className="block text-sm">
+          <span className="mb-1 block opacity-70">Primærtekst</span>
+          <textarea
+            defaultValue={row.metaPrimaryText ?? ""}
+            rows={3}
+            onBlur={(e) => save(row.id, "metaPrimaryText", e.target.value)}
+            className="w-full rounded border bg-transparent p-2"
+          />
+        </label>
+        <label className="block text-sm">
+          <span className="mb-1 block opacity-70">Overskrift</span>
+          <textarea
+            value={headline}
+            rows={3}
+            onChange={(e) => setHeadline(e.target.value)}
+            onBlur={(e) => save(row.id, "metaHeadline", e.target.value)}
+            className="w-full rounded border bg-transparent p-2"
+          />
+          <span
+            className={`mt-1 block text-xs ${lang ? "text-amber-700" : "opacity-60"}`}
+            title="Metas anbefaling: 40 tegn (Facebook-feed 27) — en anbefaling, ikke et klippepunkt"
+          >
+            {headline.length} tegn{lang ? ` — over Metas anbefaling (${META_OVERSKRIFT_ANBEFALING})` : ""}
+          </span>
+        </label>
+      </div>
+    </div>
+  );
+}
 
 const FIELDS: Record<string, { key: keyof Row; label: string; rows?: number }[]> = {
   morten: [{ key: "text", label: "Tekst", rows: 3 }],
@@ -235,6 +289,8 @@ export default function Bibliotek() {
                   </label>
                 )}
               </div>
+
+              <MetaTekst row={row} save={save} />
 
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 <button

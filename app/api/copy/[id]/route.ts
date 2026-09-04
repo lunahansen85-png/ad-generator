@@ -14,6 +14,8 @@ const FIELDS = [
   "text",
   "subheadline",
   "body",
+  "metaPrimaryText",
+  "metaHeadline",
   "note",
 ] as const;
 

@@ -35,6 +35,8 @@ export async function POST(req: NextRequest) {
       text: String(b.text ?? ""),
       subheadline: String(b.subheadline ?? ""),
       body: String(b.body ?? ""),
+      metaPrimaryText: String(b.metaPrimaryText ?? ""),
+      metaHeadline: String(b.metaHeadline ?? ""),
       note: String(b.note ?? ""),
     })
     .returning();

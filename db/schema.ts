@@ -34,6 +34,13 @@ export const adCopy = pgTable(
     subheadline: text("subheadline").notNull().default(""),
     body: text("body").notNull().default(""),
 
+    // Meta-annoncetekst (05.09.2026). Hoerer til ANNONCEN, ikke til billedet: de brændes aldrig
+    // ind i grafikken (lib/generate.ts og lib/templates/* rører dem ikke). Ad Studio henter dem
+    // med hvert billede via /api/copy og udfylder trin ②'s primaertekst/overskrift pr. annonce.
+    // Alle raekkens billeder deler dem — én tekstraekke = ét budskab = én annoncetekst.
+    metaPrimaryText: text("meta_primary_text").notNull().default(""),
+    metaHeadline: text("meta_headline").notNull().default(""),
+
     note: text("note").notNull().default(""),
     archived: boolean("archived").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true })
