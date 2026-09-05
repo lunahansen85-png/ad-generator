@@ -80,7 +80,7 @@ function MetaTekst({ row, save }: { row: Row; save: (id: string, field: string, 
 }
 
 const FIELDS: Record<string, { key: keyof Row; label: string; rows?: number }[]> = {
-  morten: [{ key: "text", label: "Tekst", rows: 3 }],
+  morten: [{ key: "text", label: "Billedtekst", rows: 3 }],
   testimonial: [
     { key: "headline", label: "Overskrift" },
     { key: "quote", label: "Citat", rows: 3 },
