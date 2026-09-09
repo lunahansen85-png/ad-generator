@@ -497,18 +497,18 @@ export const mortenTemplates: MortenTemplate[] = [
   },
   {
     id: "morten_3_9x16", label: "Morten 3 – 9×16",
-    baseImage: path.join(BASES, "morten_base_3_9x16.jpg"),
+    baseImage: path.join(BASES, "morten_base_3_9x16ny3.jpg"),
     outSuffix: "morten", width: 1080, height: 1920,
     render(ctx, canvas, { text }) {
       renderBlockLeftBoxes(ctx, canvas, text, {
         maxSize: 56, minSize: 18, xMargin: 54, rightMargin: 127, padX: 24, padTop: 20, padBottom: 12,
-        yBottom: 1540, yTopMax: 1200, boxColor: rgb(254,209,30), textColor: rgb(0,0,0),
+        yBottom: 1540, yTopMax: 1200, boxColor: rgb(255,40,40), textColor: rgb(255,255,255),
       });
     },
   },
   {
     id: "morten_4_9x16", label: "Morten 4 – 9×16",
-    baseImage: path.join(BASES, "morten_base_4_9x16.jpg"),
+    baseImage: path.join(BASES, "morten_base_4_9x16ny2.jpg"),
     outSuffix: "morten", width: 1080, height: 1920,
     render(ctx, canvas, { text }) {
       const X_MARGIN = 55, LINE_GAP = 24, TOP_GAP = 30;
@@ -521,7 +521,7 @@ export const mortenTemplates: MortenTemplate[] = [
       });
       const font = fontStr(FONT.bold700, size);
       let y = YELLOW_TOP + TOP_GAP;
-      ctx.textAlign = "left"; ctx.textBaseline = "alphabetic"; ctx.font = font; ctx.fillStyle = rgb(0,0,0);
+      ctx.textAlign = "left"; ctx.textBaseline = "alphabetic"; ctx.font = font; ctx.fillStyle = rgb(255,255,255);
       for (let i = 0; i < lines.length; i++) {
         ctx.fillText(lines[i], X_MARGIN, y + ascents[i]);
         y += heights[i] + LINE_GAP;
@@ -535,7 +535,7 @@ export const mortenTemplates: MortenTemplate[] = [
     render(ctx, canvas, { text }) {
       renderBlockLeftBoxes(ctx, canvas, text, {
         maxSize: 44, minSize: 18, xMargin: 54, rightMargin: 54, padX: 22, padTop: 12, padBottom: 7,
-        yBottom: 1540, yTopMax: 1200, boxColor: rgb(42,71,246), textColor: rgb(255,255,255),
+        yBottom: 1540, yTopMax: 1200, boxColor: rgb(0,74,173), textColor: rgb(255,255,255),
       });
     },
   },
@@ -593,7 +593,7 @@ export const mortenTemplates: MortenTemplate[] = [
   },
   {
     id: "morten_9_9x16", label: "Morten 9 – 9×16",
-    baseImage: path.join(BASES, "morten_base_9_9x16.jpg"),
+    baseImage: path.join(BASES, "morten_base_9_9x16ny2.jpg"),
     outSuffix: "morten", width: 1080, height: 1920,
     render(ctx, canvas, { text }) {
       const X_MARGIN = 45, RIGHT_MARGIN = 45, LINE_GAP = 18;
@@ -614,7 +614,7 @@ export const mortenTemplates: MortenTemplate[] = [
       const leftover = YELLOW_BOTTOM - YELLOW_TOP - totalH;
       let y = Math.max(YELLOW_TOP + TOP_PAD, YELLOW_TOP + leftover * 0.3);
       ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
-      ctx.font = fontStr(FONT.bold700, size); ctx.fillStyle = rgb(0,0,0);
+      ctx.font = fontStr(FONT.bold700, size); ctx.fillStyle = rgb(255,255,255);
       for (let i = 0; i < lines.length; i++) {
         ctx.fillText(lines[i], X_MARGIN, y + ascents[i]); y += heights[i] + LINE_GAP;
       }
@@ -657,18 +657,18 @@ export const mortenTemplates: MortenTemplate[] = [
   },
   {
     id: "morten_3_1080x1080", label: "Morten 3 – 1080×1080",
-    baseImage: path.join(BASES, "morten_base_3_1080x1080.jpg"),
+    baseImage: path.join(BASES, "morten_base_3_1080x1080ny3.jpg"),
     outSuffix: "morten", width: 1080, height: 1080,
     render(ctx, canvas, { text }) {
       renderBlockLeftBoxes(ctx, canvas, text, {
         maxSize: 32, minSize: 16, xMargin: 54, rightMargin: 127, padX: 24, padTop: 12, padBottom: 7,
-        yBottom: 972, yTopMax: 656, boxColor: rgb(254,209,30), textColor: rgb(0,0,0),
+        yBottom: 972, yTopMax: 656, boxColor: rgb(255,40,40), textColor: rgb(255,255,255),
       });
     },
   },
   {
     id: "morten_4_1080x1080", label: "Morten 4 – 1080×1080",
-    baseImage: path.join(BASES, "morten_base_4_1080x1080.jpg"),
+    baseImage: path.join(BASES, "morten_base_4_1080x1080ny4.jpg"),
     outSuffix: "morten", width: 1080, height: 1080,
     render(ctx, canvas, { text }) {
       const X_MARGIN = 50, LINE_GAP = 24, TOP_GAP = 8, BOTTOM_GAP = 8;
@@ -683,7 +683,7 @@ export const mortenTemplates: MortenTemplate[] = [
       const totalH = heights.reduce((a, h) => a + h, 0) + LINE_GAP * (heights.length - 1);
       const leftover = YELLOW_BOTTOM - YELLOW_TOP - totalH;
       let y = YELLOW_TOP + leftover * 0.58;
-      ctx.textAlign = "left"; ctx.textBaseline = "alphabetic"; ctx.font = font; ctx.fillStyle = rgb(0,0,0);
+      ctx.textAlign = "left"; ctx.textBaseline = "alphabetic"; ctx.font = font; ctx.fillStyle = rgb(255,255,255);
       for (let i = 0; i < lines.length; i++) {
         ctx.fillText(lines[i], X_MARGIN, y + ascents[i]); y += heights[i] + LINE_GAP;
       }
@@ -691,12 +691,12 @@ export const mortenTemplates: MortenTemplate[] = [
   },
   {
     id: "morten_5_1080x1080", label: "Morten 5 – 1080×1080",
-    baseImage: path.join(BASES, "morten_base_5_1080x1080ny.jpg"),
+    baseImage: path.join(BASES, "morten_base_5_1018x1018ny.jpg"),
     outSuffix: "morten", width: 1080, height: 1080,
     render(ctx, canvas, { text }) {
       renderBlockLeftBoxes(ctx, canvas, text, {
         maxSize: 32, minSize: 16, xMargin: 49, rightMargin: 49, padX: 22, padTop: 12, padBottom: 7,
-        yBottom: 992, yTopMax: 656, boxColor: rgb(42,71,246), textColor: rgb(255,255,255),
+        yBottom: 992, yTopMax: 656, boxColor: rgb(0,74,173), textColor: rgb(255,255,255),
       });
     },
   },
@@ -754,7 +754,7 @@ export const mortenTemplates: MortenTemplate[] = [
   },
   {
     id: "morten_9_1080x1080", label: "Morten 9 – 1080×1080",
-    baseImage: path.join(BASES, "morten_base_9_1080x1080.jpg"),
+    baseImage: path.join(BASES, "morten_base_9_1080x1080ny2.jpg"),
     outSuffix: "morten", width: 1080, height: 1080,
     render(ctx, canvas, { text }) {
       const X_MARGIN = 42, RIGHT_MARGIN = 42, LINE_GAP = 18;
@@ -774,7 +774,7 @@ export const mortenTemplates: MortenTemplate[] = [
       const leftover = YELLOW_BOTTOM - YELLOW_TOP - totalH;
       let y = YELLOW_TOP + leftover * 0.5;
       ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
-      ctx.font = fontStr(FONT.bold700, size); ctx.fillStyle = rgb(0,0,0);
+      ctx.font = fontStr(FONT.bold700, size); ctx.fillStyle = rgb(255,255,255);
       for (let i = 0; i < lines.length; i++) {
         ctx.fillText(lines[i], X_MARGIN, y + ascents[i]); y += heights[i] + LINE_GAP;
       }
