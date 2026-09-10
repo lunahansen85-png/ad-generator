@@ -79,6 +79,79 @@ function MetaTekst({ row, save }: { row: Row; save: (id: string, field: string, 
   );
 }
 
+/**
+ * Stor visning af ét billede. Klik på en thumbnail åbner den; ← → bladrer mellem de viste billeder
+ * i samme tekstraekke; Esc, ✕ eller klik uden for billedet lukker. Erstatter det tidligere
+ * target="_blank"-link (10.09.2026, Thomas: billedet må ikke åbne i en ny fane).
+ */
+function Lightbox({
+  items,
+  idx,
+  onIdx,
+  onClose,
+}: {
+  items: Img[];
+  idx: number;
+  onIdx: (i: number) => void;
+  onClose: () => void;
+}) {
+  const n = items.length;
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+      else if (e.key === "ArrowRight") onIdx((idx + 1) % n);
+      else if (e.key === "ArrowLeft") onIdx((idx - 1 + n) % n);
+      else return;
+      e.preventDefault();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [idx, n, onIdx, onClose]);
+
+  const img = items[idx];
+  if (!img) return null;
+  const nav = "absolute top-1/2 -translate-y-1/2 rounded-full bg-black/50 px-4 py-2 text-3xl text-white hover:bg-black/70";
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label={img.filename}
+    >
+      <figure className="flex max-h-full max-w-full flex-col items-center" onClick={(e) => e.stopPropagation()}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={`/i/${img.key}`}
+          alt={img.filename}
+          className="max-h-[85vh] max-w-full rounded object-contain"
+        />
+        <figcaption className="mt-2 text-sm text-white/80">
+          {img.filename} ({idx + 1} af {n})
+        </figcaption>
+      </figure>
+      {n > 1 && (
+        <>
+          <button type="button" onClick={(e) => { e.stopPropagation(); onIdx((idx - 1 + n) % n); }} className={`${nav} left-3`} title="Forrige (←)">
+            ‹
+          </button>
+          <button type="button" onClick={(e) => { e.stopPropagation(); onIdx((idx + 1) % n); }} className={`${nav} right-3`} title="Næste (→)">
+            ›
+          </button>
+        </>
+      )}
+      <button
+        type="button"
+        onClick={onClose}
+        className="absolute top-3 right-3 rounded-full bg-black/50 px-3 py-1 text-2xl text-white hover:bg-black/70"
+        title="Luk (Esc)"
+      >
+        ✕
+      </button>
+    </div>
+  );
+}
+
 const FIELDS: Record<string, { key: keyof Row; label: string; rows?: number }[]> = {
   morten: [{ key: "text", label: "Billedtekst", rows: 3 }],
   testimonial: [
@@ -101,6 +174,16 @@ export default function Bibliotek() {
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [favoritesOnly, setFavoritesOnly] = useState(false);
+  // Aabent billede i stor visning: hvilken raekke og hvilket af raekkens VISTE billeder.
+  const [lb, setLb] = useState<{ rowId: string; idx: number } | null>(null);
+  const visibleImages = useCallback(
+    (row: Row) => row.images.filter((img) => !favoritesOnly || img.favorite),
+    [favoritesOnly]
+  );
+  const lbRow = lb ? rows.find((r) => r.id === lb.rowId) : undefined;
+  const lbItems = lbRow ? visibleImages(lbRow) : [];
+  const closeLb = useCallback(() => setLb(null), []);
+  const setLbIdx = useCallback((i: number) => setLb((cur) => (cur ? { ...cur, idx: i } : cur)), []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -311,15 +394,13 @@ export default function Bibliotek() {
 
               {row.images.length > 0 && (
                 <div className="mt-3 flex flex-wrap gap-2">
-                  {row.images
-                    .filter((img) => !favoritesOnly || img.favorite)
-                    .map((img) => (
+                  {visibleImages(row).map((img, i) => (
                       <div key={img.id} className="relative">
-                        <a
-                          href={`/i/${img.key}`}
-                          target="_blank"
-                          rel="noreferrer"
+                        <button
+                          type="button"
+                          onClick={() => setLb({ rowId: row.id, idx: i })}
                           title={img.filename}
+                          className="block"
                         >
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
@@ -327,7 +408,7 @@ export default function Bibliotek() {
                             alt={img.filename}
                             className="h-20 w-20 rounded border object-cover"
                           />
-                        </a>
+                        </button>
                         <button
                           onClick={() => toggleFavorite(img.id)}
                           title={img.favorite ? "Fjern favorit" : "Markér som favorit"}
@@ -343,6 +424,14 @@ export default function Bibliotek() {
             </li>
           ))}
         </ul>
+      )}
+      {lb && lbItems.length > 0 && (
+        <Lightbox
+          items={lbItems}
+          idx={Math.min(lb.idx, lbItems.length - 1)}
+          onIdx={setLbIdx}
+          onClose={closeLb}
+        />
       )}
     </main>
   );
