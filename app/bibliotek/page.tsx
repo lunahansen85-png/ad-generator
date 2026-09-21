@@ -1,6 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { CATEGORIES, META_OVERSKRIFT_ANBEFALING } from "./kategorier";
+import VideoLibrary from "./VideoLibrary";
+
+// Fanen "Videoer" viser videobiblioteket (VideoLibrary.tsx) i stedet for tekstraekkerne.
+const VIDEOER = "videoer";
 
 type Img = { id: string; templateId: string; label: string; filename: string; key: string; favorite: boolean };
 type Row = {
@@ -20,17 +25,6 @@ type Row = {
   updatedAt: string;
   images: Img[];
 };
-
-const CATEGORIES = [
-  { id: "morten", label: "Morten" },
-  { id: "testimonial", label: "Testimonials" },
-  { id: "retinol", label: "Retinol" },
-];
-
-// Metas anbefaling for overskriften. 40 er en ANBEFALING, ikke et klippepunkt: Thomas' egen live
-// annonce med 35 tegn vises fuldt ud (verificeret 03.09.2026). Samme tal og samme formulering som
-// Ad Studios taeller (web/app.js: META_OVERSKRIFT_MAX), saa de to vaerktoejer siger det samme.
-const META_OVERSKRIFT_ANBEFALING = 40;
 
 /**
  * Meta-annoncetekst for én tekstraekke: den tekst der staar i SELVE annoncen paa Facebook/Instagram
@@ -186,6 +180,7 @@ export default function Bibliotek() {
   const setLbIdx = useCallback((i: number) => setLb((cur) => (cur ? { ...cur, idx: i } : cur)), []);
 
   const load = useCallback(async () => {
+    if (category === VIDEOER) return; // videofanen henter selv (VideoLibrary)
     setLoading(true);
     try {
       const res = await fetch(`/api/copy?category=${category}`, { cache: "no-store" });
@@ -299,7 +294,15 @@ export default function Bibliotek() {
             {c.label}
           </button>
         ))}
-        <span className="ml-auto flex gap-2">
+        <button
+          onClick={() => setCategory(VIDEOER)}
+          className={`rounded-full border px-4 py-1.5 text-sm ${
+            category === VIDEOER ? "bg-foreground text-background" : "opacity-70"
+          }`}
+        >
+          Videoer
+        </button>
+        <span className={`ml-auto flex gap-2 ${category === VIDEOER ? "hidden" : ""}`}>
           <button
             onClick={() => setFavoritesOnly((v) => !v)}
             className={`rounded border px-3 py-1.5 text-sm ${favoritesOnly ? "bg-amber-100 border-amber-400 text-amber-800" : "opacity-70"}`}
@@ -325,15 +328,19 @@ export default function Bibliotek() {
         </span>
       </div>
 
-      {error && (
+      {error && category !== VIDEOER && (
         <p className="mb-4 rounded border border-red-500/40 bg-red-500/10 p-3 text-sm">{error}</p>
       )}
 
-      <p className="mb-3 text-sm opacity-60">
-        {rows.length} tekster · {totalImages} billeder gemt
-      </p>
+      {category !== VIDEOER && (
+        <p className="mb-3 text-sm opacity-60">
+          {rows.length} tekster · {totalImages} billeder gemt
+        </p>
+      )}
 
-      {loading ? (
+      {category === VIDEOER ? (
+        <VideoLibrary />
+      ) : loading ? (
         <p className="opacity-60">Henter…</p>
       ) : rows.length === 0 ? (
         <p className="opacity-60">Ingen tekster endnu. Tryk “+ Ny tekst”.</p>

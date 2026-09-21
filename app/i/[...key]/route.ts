@@ -19,6 +19,12 @@ export async function GET(
   const { key } = await ctx.params;
   const objectKey = key.join("/");
 
+  // Videoer (op til 4 GB) maa ikke hentes her: denne rute lægger hele objektet i hukommelsen.
+  // De serveres som stream af /v/<noegle>. Billeder er uberoerte af dette tjek.
+  if (objectKey.startsWith("vid/")) {
+    return new Response("Billedet findes ikke.", { status: 404 });
+  }
+
   try {
     const { body, contentType } = await getImage(objectKey);
     return new Response(new Uint8Array(body), {

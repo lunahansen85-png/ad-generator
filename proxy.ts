@@ -16,7 +16,7 @@ export function proxy(req: NextRequest) {
   if (!password) return noindex(NextResponse.next());
 
   const p = req.nextUrl.pathname;
-  if (p === "/login" || p === "/api/login" || p.startsWith("/i/")) {
+  if (p === "/login" || p === "/api/login" || p.startsWith("/i/") || p.startsWith("/v/")) {
     return noindex(NextResponse.next());
   }
 
@@ -31,6 +31,8 @@ export function proxy(req: NextRequest) {
 export const config = {
   // "i" = den offentlige billed-rute (/i/<noegle>). Den SKAL vaere undtaget:
   // Ad Studio og Meta henter billeder derfra uden login.
+  // "v" = den offentlige video-rute (/v/<noegle>, kun noegler under vid/) — undtaget af samme grund:
+  // Meta henter videoen derfra uden login.
   // robots.txt er undtaget, saa crawlere kan laese den (ellers 307 til /login).
-  matcher: ["/((?!login|api/login|i/|_next/static|_next/image|favicon.ico|robots.txt).*)"],
+  matcher: ["/((?!login|api/login|i/|v/|_next/static|_next/image|favicon.ico|robots.txt).*)"],
 };

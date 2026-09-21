@@ -3,6 +3,9 @@ import {
   text,
   boolean,
   integer,
+  bigint,
+  real,
+  uuid,
   timestamp,
   index,
   uniqueIndex,
@@ -95,5 +98,71 @@ export const generatedImageRelations = relations(generatedImage, ({ one }) => ({
   adCopy: one(adCopy, {
     fields: [generatedImage.adCopyId],
     references: [adCopy.id],
+  }),
+}));
+
+/**
+ * video_group = én færdig videoannonce i biblioteket (fx "VID 76"). Ingen redigering af selve
+ * videoen her — kun opbevaring + Meta-annoncetekst. Varianterne (hooks, længder) er video_asset.
+ * id'et laves af serveren FØR upload, fordi det indgår i bucket-nøglen (vid/<gruppe>/<variant>.mp4).
+ */
+export const videoGroup = pgTable("video_group", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  // Bibliotekets kategori-id (morten | testimonial | retinol) eller en ny, brugerskabt slug.
+  category: text("category").notNull(),
+  name: text("name").notNull(),
+  // Samme betydning som ad_copy.meta_*: teksten i SELVE annoncen, fælles for alle varianter.
+  metaPrimaryText: text("meta_primary_text").notNull().default(""),
+  metaHeadline: text("meta_headline").notNull().default(""),
+  note: text("note").notNull().default(""),
+  archived: boolean("archived").notNull().default(false),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * video_asset = én videofil (variant) i en video_group. `key` er noeglen i bucket og indgaar i
+ * den faste offentlige URL /v/<key>, som Meta henter videoen fra. `thumbKey` er et JPEG-stillbillede
+ * (lavet i browseren ved upload), serveret af den eksisterende /i/-rute — Meta kraever et
+ * thumbnail til videoannoncer.
+ */
+export const videoAsset = pgTable(
+  "video_asset",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    groupId: uuid("group_id")
+      .notNull()
+      .references(() => videoGroup.id, { onDelete: "cascade" }),
+    variant: text("variant").notNull(),
+    filename: text("filename"),
+    key: text("key").notNull(),
+    thumbKey: text("thumb_key"),
+    contentType: text("content_type"),
+    // bigint: videoer op til 4 GB er stoerre end integer (max ~2,1 GB). mode "number" er sikkert
+    // op til 2^53 bytes.
+    bytes: bigint("bytes", { mode: "number" }),
+    width: integer("width"),
+    height: integer("height"),
+    durationS: real("duration_s"),
+    favorite: boolean("favorite").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("video_asset_key_idx").on(t.key),
+    index("video_asset_group_idx").on(t.groupId),
+  ]
+);
+
+export type VideoGroupRow = typeof videoGroup.$inferSelect;
+export type VideoAssetRow = typeof videoAsset.$inferSelect;
+
+export const videoGroupRelations = relations(videoGroup, ({ many }) => ({
+  assets: many(videoAsset),
+}));
+
+export const videoAssetRelations = relations(videoAsset, ({ one }) => ({
+  group: one(videoGroup, {
+    fields: [videoAsset.groupId],
+    references: [videoGroup.id],
   }),
 }));
