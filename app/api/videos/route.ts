@@ -6,6 +6,7 @@ import { publicOrigin } from "@/lib/public-url";
 import { headObject } from "@/lib/storage";
 import { isCategoryId, isUuid, thumbKey, videoKey } from "@/lib/video";
 import { loadGroup, toGroupJson } from "@/lib/video-json";
+import { landingUrlMap } from "@/lib/category-settings";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,11 +17,17 @@ export const dynamic = "force-dynamic";
  */
 export async function GET(req: NextRequest) {
   const origin = publicOrigin(req);
-  const groups = await db.query.videoGroup.findMany({
-    orderBy: [desc(videoGroup.createdAt)],
-    with: { assets: true },
+  const [groups, landingUrls] = await Promise.all([
+    db.query.videoGroup.findMany({
+      orderBy: [desc(videoGroup.createdAt)],
+      with: { assets: true },
+    }),
+    landingUrlMap(),
+  ]);
+  return NextResponse.json({
+    groups: groups.map((g) => toGroupJson(g, origin, landingUrls)),
+    landingUrls,
   });
-  return NextResponse.json({ groups: groups.map((g) => toGroupJson(g, origin)) });
 }
 
 const bad = (error: string, status = 400) => NextResponse.json({ error }, { status });
@@ -123,5 +130,7 @@ export async function POST(req: NextRequest) {
   }
 
   const group = await loadGroup(groupId);
-  return NextResponse.json({ group: group ? toGroupJson(group, publicOrigin(req)) : null });
+  return NextResponse.json({
+    group: group ? toGroupJson(group, publicOrigin(req), await landingUrlMap()) : null,
+  });
 }

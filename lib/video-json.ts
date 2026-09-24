@@ -9,11 +9,20 @@ import { videoGroup, type VideoAssetRow, type VideoGroupRow } from "@/db/schema"
  * url      = den faste offentlige video-URL (/v/<key>), som Meta henter videoen fra.
  * thumbUrl = thumbnailen via den eksisterende billed-rute (/i/<thumbKey>).
  * Begge bygges af publicOrigin() — praecis som CSV-eksporten bygger billed-URL'erne.
+ *
+ * categoryLandingUrl (24.09.2026) = kategoriens standard-landingsside fra category_settings —
+ * samme feltnavn og samme betydning som i /api/copy; "" naar der ingen er. `landingUrls` er
+ * opslaget fra landingUrlMap(); udelades det, er feltet tomt.
  */
-export function toGroupJson(g: VideoGroupRow & { assets: VideoAssetRow[] }, origin: string) {
+export function toGroupJson(
+  g: VideoGroupRow & { assets: VideoAssetRow[] },
+  origin: string,
+  landingUrls: Record<string, string> = {}
+) {
   return {
     id: g.id,
     category: g.category,
+    categoryLandingUrl: landingUrls[g.category] ?? "",
     name: g.name,
     metaPrimaryText: g.metaPrimaryText,
     metaHeadline: g.metaHeadline,

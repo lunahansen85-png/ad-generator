@@ -29,6 +29,13 @@
       "when": 1790014636101,
       "tag": "0003_add_video_library",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1790800000000,
+      "tag": "0004_add_category_landing_url",
+      "breakpoints": true
     }
   ]
 }

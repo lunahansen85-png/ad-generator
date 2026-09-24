@@ -5,6 +5,7 @@ import { videoGroup } from "@/db/schema";
 import { publicOrigin } from "@/lib/public-url";
 import { isCategoryId, isUuid } from "@/lib/video";
 import { loadGroup, toGroupJson } from "@/lib/video-json";
+import { landingUrlMap } from "@/lib/category-settings";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -37,5 +38,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   const [row] = await db.update(videoGroup).set(patch).where(eq(videoGroup.id, id)).returning();
   if (!row) return NextResponse.json({ error: "Videoen findes ikke." }, { status: 404 });
   const group = await loadGroup(id);
-  return NextResponse.json({ group: group ? toGroupJson(group, publicOrigin(req)) : null });
+  return NextResponse.json({
+    group: group ? toGroupJson(group, publicOrigin(req), await landingUrlMap()) : null,
+  });
 }

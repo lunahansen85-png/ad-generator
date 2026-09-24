@@ -74,6 +74,85 @@ function MetaTekst({ row, save }: { row: Row; save: (id: string, field: string, 
 }
 
 /**
+ * Landingsside (standard) for den valgte kategori (24.09.2026): den side, kategoriens annoncer er
+ * lavet til. Gemmes med det samme (PUT /api/categories) som resten af biblioteket, og laeses af
+ * Ad Push sammen med teksterne — saa adressen kun staar ét sted. Tomt felt = ingen standard.
+ */
+function Landingsside({
+  category,
+  label,
+  value,
+  onSaved,
+}: {
+  category: string;
+  label: string;
+  value: string;
+  onSaved: (url: string) => void;
+}) {
+  // Kaldes med key={category} af siden, saa et kategori-skift giver et nyt felt med den nye
+  // kategoris adresse — i stedet for en useEffect, der skriver state om efter hver render.
+  const [tekst, setTekst] = useState(value);
+  const [fejl, setFejl] = useState<string | null>(null);
+  const [gemt, setGemt] = useState(false);
+
+  async function gem() {
+    if (tekst.trim() === value) return;
+    try {
+      const res = await fetch("/api/categories", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ category, landingUrl: tekst }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setGemt(false);
+        setFejl(data.error ?? "Kunne ikke gemme landingssiden.");
+        return;
+      }
+      setFejl(null);
+      setTekst(data.landingUrl ?? "");
+      setGemt(true);
+      onSaved(data.landingUrl ?? "");
+    } catch {
+      setGemt(false);
+      setFejl("Kunne ikke gemme landingssiden — prøv igen.");
+    }
+  }
+
+  return (
+    <div className="mb-4 rounded-lg border border-dashed p-3">
+      <label className="block text-sm">
+        <span className="mb-1 block font-medium">
+          Landingsside (standard)
+          <span className="ml-2 font-normal opacity-60">
+            siden som {label}-annoncerne er lavet til — Ad Push bruger den som annoncens link
+          </span>
+        </span>
+        <input
+          type="url"
+          value={tekst}
+          onChange={(e) => {
+            setTekst(e.target.value);
+            setGemt(false);
+          }}
+          onBlur={gem}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") e.currentTarget.blur();
+          }}
+          placeholder="https://kjeldgaards.com/… (tom = ingen standard)"
+          className="w-full rounded border bg-transparent p-2"
+        />
+      </label>
+      {fejl ? (
+        <p className="mt-1 text-xs text-red-600">{fejl}</p>
+      ) : gemt ? (
+        <p className="mt-1 text-xs opacity-60">Gemt.</p>
+      ) : null}
+    </div>
+  );
+}
+
+/**
  * Stor visning af ét billede. Klik på en thumbnail åbner den; ← → bladrer mellem de viste billeder
  * i samme tekstraekke; Esc, ✕ eller klik uden for billedet lukker. Erstatter det tidligere
  * target="_blank"-link (10.09.2026, Thomas: billedet må ikke åbne i en ny fane).
@@ -163,6 +242,8 @@ const FIELDS: Record<string, { key: keyof Row; label: string; rows?: number }[]>
 export default function Bibliotek() {
   const [category, setCategory] = useState("morten");
   const [rows, setRows] = useState<Row[]>([]);
+  // Landingsside pr. kategori — kommer med i svaret fra /api/copy, saa der ikke skal hentes to gange.
+  const [landingUrls, setLandingUrls] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
@@ -186,6 +267,7 @@ export default function Bibliotek() {
       const res = await fetch(`/api/copy?category=${category}`, { cache: "no-store" });
       const data = await res.json();
       setRows(data.rows ?? []);
+      setLandingUrls(data.landingUrls ?? {});
       setError(null);
     } catch {
       setError("Kunne ikke hente teksterne.");
@@ -327,6 +409,16 @@ export default function Bibliotek() {
           </a>
         </span>
       </div>
+
+      {category !== VIDEOER && !loading && (
+        <Landingsside
+          key={category}
+          category={category}
+          label={CATEGORIES.find((c) => c.id === category)?.label ?? category}
+          value={landingUrls[category] ?? ""}
+          onSaved={(url) => setLandingUrls((m) => ({ ...m, [category]: url }))}
+        />
+      )}
 
       {error && category !== VIDEOER && (
         <p className="mb-4 rounded border border-red-500/40 bg-red-500/10 p-3 text-sm">{error}</p>

@@ -166,3 +166,22 @@ export const videoAssetRelations = relations(videoAsset, ({ one }) => ({
     references: [videoGroup.id],
   }),
 }));
+
+/**
+ * category_settings = indstillinger pr. kategori (24.09.2026). En kategori er i resten af skemaet
+ * bare en streng paa hver raekke (ad_copy.category / video_group.category) — der findes ingen
+ * kategori-tabel, og kategorier opstaar frit i videobiblioteket (slugifyCategory). Derfor er det
+ * her en ren indstillings-tabel med kategori-id'et som noegle, uden fremmednoegle: en manglende
+ * raekke betyder blot "ingen standard valgt", og en kategori uden tekster maa gerne have en URL.
+ *
+ * landingUrl = den landingsside, kategoriens annoncer er lavet til. Ad Push laeser den som
+ * `categoryLandingUrl` (pr. raekke i /api/copy, pr. gruppe i /api/videos) og bruger den som
+ * annoncens link i automationen. Tom streng = ingen standard.
+ */
+export const categorySettings = pgTable("category_settings", {
+  category: text("category").primaryKey(),
+  landingUrl: text("landing_url").notNull().default(""),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type CategorySettingsRow = typeof categorySettings.$inferSelect;
