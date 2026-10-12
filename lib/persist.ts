@@ -12,24 +12,27 @@ import { generateMortens, generateRetinols, generateTestimonials } from "./gener
  * Noeglen indeholder et indholds-hash. Retter Luna en skabelon, aendrer
  * billedbytes sig -> ny noegle -> ny URL. Gamle URL'er bliver ved med at
  * virke, saa annoncer der allerede er oprettet aldrig gaar i stykker.
+ *
+ * `layouts` (12.10.2026) = de layout-stammer der er sat flueben ved i biblioteket, fx
+ * ["morten_3"] → baade 1:1 og 9:16. Tom eller udeladt = alle layouts, praecis som foer.
  */
-export async function generateAndStore(row: AdCopyRow) {
+export async function generateAndStore(row: AdCopyRow, layouts?: string[] | null) {
   let images;
   if (row.category === "morten") {
-    images = await generateMortens({ text: row.text });
+    images = await generateMortens({ text: row.text }, layouts);
   } else if (row.category === "retinol") {
     images = await generateRetinols({
       headline: row.headline,
       subheadline: row.subheadline,
       body: row.body,
-    });
+    }, layouts);
   } else {
     images = await generateTestimonials({
       headline: row.headline,
       quote: row.quote,
       name: row.name,
       source: (row.source?.toLowerCase() === "trustpilot" || row.source?.toLowerCase() === "tp") ? "trustpilot" : "other",
-    }, true);
+    }, true, layouts);
   }
 
   const stored: { templateId: string; label: string; filename: string; key: string }[] = [];

@@ -8,6 +8,12 @@ import {
 } from "./templates/testimonial";
 import { mortenTemplates, MortenInput } from "./templates/morten";
 import { retinolTemplates, RetinolInput } from "./templates/retinol";
+import { filterByLayouts } from "./layouts";
+
+// `layouts` paa de tre generate-funktioner (12.10.2026) = de valgte layout-STAMMER, fx
+// ["morten_3"] → baade 1:1 og 9:16. Tom eller udeladt = alle layouts, praecis som foer.
+// Filtret laegges EFTER de filtre der allerede var der, saa en skabelon uden maal
+// stadig springes over.
 
 export type GeneratedImage = {
   id: string;
@@ -50,15 +56,19 @@ function slugify(text: string, fallback: string) {
 
 export async function generateTestimonials(
   input: TestimonialInput,
-  formatsOnly = false
+  formatsOnly = false,
+  layouts?: string[] | null
 ): Promise<GeneratedImage[]> {
   ensureFontsRegistered();
   const slug = slugify(input.headline || input.quote, "testimonial");
   const results: GeneratedImage[] = [];
 
-  const allTpls = formatsOnly
-    ? testimonialFormatTemplates
-    : [...testimonialTemplates, ...testimonialFormatTemplates];
+  const allTpls = filterByLayouts(
+    formatsOnly
+      ? testimonialFormatTemplates
+      : [...testimonialTemplates, ...testimonialFormatTemplates],
+    layouts
+  );
   for (const tpl of allTpls) {
     if (tpl.requiresTrustpilot && input.source !== "trustpilot") continue;
 
@@ -79,12 +89,15 @@ export async function generateTestimonials(
   return results;
 }
 
-export async function generateRetinols(input: RetinolInput): Promise<GeneratedImage[]> {
+export async function generateRetinols(
+  input: RetinolInput,
+  layouts?: string[] | null
+): Promise<GeneratedImage[]> {
   ensureFontsRegistered();
   const slug = slugify(input.headline, "retinol");
   const results: GeneratedImage[] = [];
 
-  for (const tpl of retinolTemplates.filter((t) => t.width && t.height)) {
+  for (const tpl of filterByLayouts(retinolTemplates.filter((t) => t.width && t.height), layouts)) {
     const { canvas, ctx } = tpl.width && tpl.height
       ? await renderBaseResizeCrop(tpl.baseImage, tpl.width, tpl.height)
       : await renderBase(tpl.baseImage);
@@ -102,12 +115,15 @@ export async function generateRetinols(input: RetinolInput): Promise<GeneratedIm
   return results;
 }
 
-export async function generateMortens(input: MortenInput): Promise<GeneratedImage[]> {
+export async function generateMortens(
+  input: MortenInput,
+  layouts?: string[] | null
+): Promise<GeneratedImage[]> {
   ensureFontsRegistered();
   const slug = slugify(input.text, "morten");
   const results: GeneratedImage[] = [];
 
-  for (const tpl of mortenTemplates.filter((t) => t.width && t.height)) {
+  for (const tpl of filterByLayouts(mortenTemplates.filter((t) => t.width && t.height), layouts)) {
     const { canvas, ctx } = tpl.width && tpl.height
       ? await renderBaseResizeCrop(tpl.baseImage, tpl.width, tpl.height)
       : await renderBase(tpl.baseImage);

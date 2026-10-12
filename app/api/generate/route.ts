@@ -6,6 +6,11 @@ export const runtime = "nodejs";
 export async function POST(req: NextRequest) {
   const body = await req.json();
   const { category } = body;
+  // `layouts` (12.10.2026) = de valgte layout-stammer, fx ["morten_3"] → baade 1:1 og 9:16.
+  // Mangler feltet, laves alle layouts praecis som foer.
+  const layouts = Array.isArray(body.layouts)
+    ? body.layouts.filter((v: unknown): v is string => typeof v === "string")
+    : undefined;
 
   try {
     let images;
@@ -15,7 +20,7 @@ export async function POST(req: NextRequest) {
       if (!text) {
         return NextResponse.json({ error: "Text is required." }, { status: 400 });
       }
-      images = await generateMortens({ text });
+      images = await generateMortens({ text }, layouts);
     } else if (category === "testimonial") {
       const headline = String(body.headline ?? "").trim();
       const quote = String(body.quote ?? "").trim();
@@ -30,7 +35,7 @@ export async function POST(req: NextRequest) {
         );
       }
       const formatsOnly = body.formatsOnly === true;
-      images = await generateTestimonials({ headline, quote, name, source }, formatsOnly);
+      images = await generateTestimonials({ headline, quote, name, source }, formatsOnly, layouts);
     } else if (category === "retinol") {
       const headline = String(body.headline ?? "").trim();
       const subheadline = String(body.subheadline ?? "").trim();
@@ -39,7 +44,7 @@ export async function POST(req: NextRequest) {
       if (!headline) {
         return NextResponse.json({ error: "Headline is required." }, { status: 400 });
       }
-      images = await generateRetinols({ headline, subheadline, body: retinolBody });
+      images = await generateRetinols({ headline, subheadline, body: retinolBody }, layouts);
     } else {
       return NextResponse.json({ error: "Unknown category." }, { status: 400 });
     }

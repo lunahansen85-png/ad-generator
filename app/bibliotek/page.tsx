@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { CATEGORIES, META_OVERSKRIFT_ANBEFALING } from "./kategorier";
 import VideoLibrary from "./VideoLibrary";
 
@@ -8,6 +8,11 @@ import VideoLibrary from "./VideoLibrary";
 const VIDEOER = "videoer";
 
 type Img = { id: string; templateId: string; label: string; filename: string; key: string; favorite: boolean };
+// Ét layout = én stamme, fx morten_3 → BAADE 1:1 og 9:16 (Ad Push springer et 1:1 uden sin
+// 9:16-soester over). Hentes fra /api/layouts, fordi denne side er "use client" og ikke kan
+// importere skabelonerne.
+type Layout = { stem: string; label: string };
+const LAYOUT_NOEGLE = "adgen.layouts.v1";
 type Row = {
   id: string;
   category: string;
@@ -153,6 +158,85 @@ function Landingsside({
 }
 
 /**
+ * Layout-vaelger (12.10.2026). Thomas: "vi skal IKKE lave 60 billeder naar der skal bruges LANGT
+ * FAERRE". Fluebenene afgoer hvilke layouts "Generér billeder" laver — standard er alle valgt, saa
+ * siden opfoerer sig som hidtil for den, der ikke roerer noget. Ét flueben = 1:1 + 9:16, fordi
+ * Ad Push springer et layout uden 9:16-soester over.
+ */
+function LayoutVaelger({
+  layouts,
+  valgt,
+  onValgt,
+  thumbs,
+}: {
+  layouts: Layout[];
+  valgt: string[];
+  onValgt: (stems: string[]) => void;
+  thumbs: Record<string, string>;
+}) {
+  const alle = layouts.map((l) => l.stem);
+  const skift = (stem: string) =>
+    onValgt(
+      valgt.includes(stem)
+        ? valgt.filter((s) => s !== stem)
+        : alle.filter((s) => s === stem || valgt.includes(s))
+    );
+
+  return (
+    <div className="mb-4 rounded-lg border border-dashed p-3">
+      <div className="mb-2 flex flex-wrap items-center gap-2">
+        <span className="text-sm font-medium">
+          Layouts der skal laves
+          <span className="ml-2 font-normal opacity-60">
+            {valgt.length} af {layouts.length} valgt — hvert flueben giver både 1:1 og 9:16
+          </span>
+        </span>
+        <span className="ml-auto flex gap-2">
+          <button type="button" onClick={() => onValgt(alle)} className="rounded border px-3 py-1 text-sm">
+            Vælg alle
+          </button>
+          <button type="button" onClick={() => onValgt([])} className="rounded border px-3 py-1 text-sm">
+            Ryd
+          </button>
+        </span>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {layouts.map((l) => {
+          const paa = valgt.includes(l.stem);
+          return (
+            <label
+              key={l.stem}
+              title={l.label}
+              className={`flex w-28 cursor-pointer flex-col items-center gap-1 rounded border p-2 text-xs ${
+                paa ? "border-foreground" : "opacity-50"
+              }`}
+            >
+              <span className="flex w-full items-center gap-1">
+                <input type="checkbox" checked={paa} onChange={() => skift(l.stem)} />
+                <span className="truncate">{l.label}</span>
+              </span>
+              {thumbs[l.stem] ? (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img src={`/i/${thumbs[l.stem]}`} alt={l.label} className="h-20 w-20 rounded object-cover" />
+              ) : (
+                <span className="flex h-20 w-20 items-center justify-center rounded border border-dashed p-1 text-center opacity-60">
+                  intet billede endnu
+                </span>
+              )}
+            </label>
+          );
+        })}
+      </div>
+      {valgt.length === 0 && (
+        <p className="mt-2 text-xs text-amber-700">
+          Intet layout valgt — sæt flueben ved mindst ét, før du genererer.
+        </p>
+      )}
+    </div>
+  );
+}
+
+/**
  * Stor visning af ét billede. Klik på en thumbnail åbner den; ← → bladrer mellem de viste billeder
  * i samme tekstraekke; Esc, ✕ eller klik uden for billedet lukker. Erstatter det tidligere
  * target="_blank"-link (10.09.2026, Thomas: billedet må ikke åbne i en ny fane).
@@ -244,6 +328,10 @@ export default function Bibliotek() {
   const [rows, setRows] = useState<Row[]>([]);
   // Landingsside pr. kategori — kommer med i svaret fra /api/copy, saa der ikke skal hentes to gange.
   const [landingUrls, setLandingUrls] = useState<Record<string, string>>({});
+  // Layouts pr. kategori (/api/layouts) + hvilke der er sat flueben ved. Valget gemmes i browseren
+  // pr. kategori, saa det staar der naeste gang; standard = alle valgt.
+  const [layouts, setLayouts] = useState<Record<string, Layout[]>>({});
+  const [valgte, setValgte] = useState<Record<string, string[]>>({});
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
@@ -279,6 +367,56 @@ export default function Bibliotek() {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    let aktiv = true;
+    (async () => {
+      try {
+        const res = await fetch("/api/layouts", { cache: "no-store" });
+        const data = await res.json();
+        const alle: Record<string, Layout[]> = data.layouts ?? {};
+        if (!aktiv) return;
+        let gemt: Record<string, string[]> = {};
+        try {
+          gemt = JSON.parse(localStorage.getItem(LAYOUT_NOEGLE) ?? "{}") ?? {};
+        } catch {
+          gemt = {};
+        }
+        const start: Record<string, string[]> = {};
+        for (const [kat, liste] of Object.entries(alle)) {
+          const kendte = liste.map((l) => l.stem);
+          const raa = gemt[kat];
+          if (!Array.isArray(raa)) {
+            start[kat] = kendte; // intet gemt valg = alle, som hidtil
+            continue;
+          }
+          const kendt = raa.filter((stem) => kendte.includes(stem));
+          // Et gemt valg, hvor INTET navn findes mere (omdoebte skabeloner), falder tilbage til alle
+          // — i stedet for at efterlade kategorien med nul valgte uden grund.
+          start[kat] = raa.length > 0 && kendt.length === 0 ? kendte : kendt;
+        }
+        setLayouts(alle);
+        setValgte(start);
+      } catch {
+        // Uden listen vises vaelgeren ikke, og generering koerer praecis som foer 12.10.2026.
+      }
+    })();
+    return () => {
+      aktiv = false;
+    };
+  }, []);
+
+  const saetValgte = useCallback((kat: string, stems: string[]) => {
+    setValgte((cur) => {
+      const naeste = { ...cur, [kat]: stems };
+      try {
+        localStorage.setItem(LAYOUT_NOEGLE, JSON.stringify(naeste));
+      } catch {
+        // privat vindue / blokeret lager: valget gaelder stadig denne gang
+      }
+      return naeste;
+    });
+  }, []);
 
   async function addRow() {
     await fetch("/api/copy", {
@@ -316,11 +454,51 @@ export default function Bibliotek() {
     await fetch(`/api/image/${imgId}/favorite`, { method: "POST" });
   }
 
+  const kategoriLayouts = layouts[category] ?? [];
+  const valgtNu = valgte[category] ?? [];
+  // Uden listen fra /api/layouts vises vaelgeren ikke, og kaldene sendes uden `layouts` = alle.
+  const vaelgerKlar = kategoriLayouts.length > 0;
+  const ingenValgt = vaelgerKlar && valgtNu.length === 0;
+  const layoutKrop = vaelgerKlar ? { layouts: valgtNu } : {};
+  const knapTekst = vaelgerKlar
+    ? ` (${valgtNu.length} af ${kategoriLayouts.length} layouts)`
+    : "";
+
+  // Thumbnail pr. layout: foerste billede med samme stamme blandt de raekker siden ALLEREDE har
+  // hentet — intet ekstra kald. Stammen findes ved at matche skabelon-id'et mod listen fra
+  // /api/layouts (laengste stamme foerst), saa reglen kun staar ét sted (lib/layouts.ts).
+  // Et kvadratisk billede foretraekkes i den kvadratiske ramme.
+  const thumbs = useMemo(() => {
+    const stems = (layouts[category] ?? []).map((l) => l.stem).sort((a, b) => b.length - a.length);
+    const ud: Record<string, string> = {};
+    const kvadrat: Record<string, boolean> = {};
+    for (const row of rows) {
+      for (const img of row.images) {
+        // Samme alias som lib/layouts.ts: grundskabelonen hedder `tp_stars`, stammen
+        // `template_tp_stars`. Gaelder KUN hvilket thumbnail der vises — hvad der GENERERES,
+        // afgoeres altid af lib/layouts.ts.
+        const id = img.templateId === "tp_stars" ? "template_tp_stars" : img.templateId;
+        const stem = stems.find((x) => id === x || id.startsWith(`${x}_`));
+        if (!stem) continue;
+        const er1x1 = img.templateId.endsWith("_1080x1080");
+        if (!ud[stem] || (er1x1 && !kvadrat[stem])) {
+          ud[stem] = img.key;
+          kvadrat[stem] = er1x1;
+        }
+      }
+    }
+    return ud;
+  }, [rows, layouts, category]);
+
   async function generateOne(id: string) {
     setBusy(id);
     setError(null);
     try {
-      const res = await fetch(`/api/copy/${id}/generate`, { method: "POST" });
+      const res = await fetch(`/api/copy/${id}/generate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(layoutKrop),
+      });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Generering fejlede.");
       await load();
@@ -338,7 +516,11 @@ export default function Bibliotek() {
     setError(null);
     for (let i = 0; i < targets.length; i++) {
       try {
-        await fetch(`/api/copy/${targets[i].id}/generate`, { method: "POST" });
+        await fetch(`/api/copy/${targets[i].id}/generate`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(layoutKrop),
+        });
       } catch {
         setError("En raekke fejlede — resten fortsatte.");
       }
@@ -396,10 +578,11 @@ export default function Bibliotek() {
           </button>
           <button
             onClick={generateAll}
-            disabled={!!progress || rows.length === 0}
+            disabled={!!progress || rows.length === 0 || ingenValgt}
+            title={ingenValgt ? "Sæt flueben ved mindst ét layout" : undefined}
             className="rounded border px-3 py-1.5 text-sm disabled:opacity-40"
           >
-            {progress ? `Genererer ${progress.done}/${progress.total}…` : "Generér alle"}
+            {progress ? `Genererer ${progress.done}/${progress.total}…` : `Generér alle${knapTekst}`}
           </button>
           <a
             href={`/api/export?category=${category}`}
@@ -417,6 +600,15 @@ export default function Bibliotek() {
           label={CATEGORIES.find((c) => c.id === category)?.label ?? category}
           value={landingUrls[category] ?? ""}
           onSaved={(url) => setLandingUrls((m) => ({ ...m, [category]: url }))}
+        />
+      )}
+
+      {category !== VIDEOER && !loading && vaelgerKlar && (
+        <LayoutVaelger
+          layouts={kategoriLayouts}
+          valgt={valgtNu}
+          onValgt={(stems) => saetValgte(category, stems)}
+          thumbs={thumbs}
         />
       )}
 
@@ -477,10 +669,11 @@ export default function Bibliotek() {
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 <button
                   onClick={() => generateOne(row.id)}
-                  disabled={busy === row.id}
+                  disabled={busy === row.id || ingenValgt}
+                  title={ingenValgt ? "Sæt flueben ved mindst ét layout" : undefined}
                   className="rounded border px-3 py-1.5 text-sm disabled:opacity-40"
                 >
-                  {busy === row.id ? "Genererer…" : "Generér billeder"}
+                  {busy === row.id ? "Genererer…" : `Generér billeder${knapTekst}`}
                 </button>
                 <span className="text-sm opacity-60">{row.images.length} billeder</span>
                 <button
